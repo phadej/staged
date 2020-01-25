@@ -1,0 +1,152 @@
+cabal-version: 2.2
+name:          staged-streams
+version:       0
+synopsis:      Zero-overhead streams using staged programming
+category:      Staged, Streaming
+description:
+  Zero-overhead streams using staged programming (i.e. Typed Template Haskell). 
+  .
+  There are two stream variants:
+  .
+  * the default /monadic/ interface in "Staged.Stream"
+  .
+  * and /pure/ streams in "Staged.Stream.Pure".
+  .
+  which differences should be self-explanatory.
+  .
+  In addition there are also:
+  .
+  * a small collection of generally useful combinators
+  for programming in Typed Template Haskell in "Staged.Commons" module.
+  .
+  * bindings to @directory@ package in "Staged.Stream.Directory".
+  More utilities is in the @staged-resourcet@ package.
+  .
+  * a number of type-families over lists,
+  and corresponding transformations to 'NP', 'NS' etc structures
+  from @sop-core@ / @generics-sop@. See "Data.SOP.Fn" module.
+  These functions are used for plumbing of stream internals.
+
+author:        Oleg Grenrus, Andres Löh
+maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
+license:       BSD-3-Clause
+license-file:  LICENSE
+tested-with:
+  GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.3 || ==8.10.1
+
+library
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     src
+  build-depends:      staged-commons >=0.1 && <0.1.1
+
+  -- ghc-boot dependencies
+  build-depends:
+    , base              >=4.9     && <4.15
+    , directory         ^>=1.3.0.0
+    , filepath          ^>=1.4.1.1
+    , template-haskell  >=2.11    && <2.17
+    , transformers      ^>=0.5.2.0
+
+  -- other dependencies
+  build-depends:
+    , generics-sop  ^>=0.5.0.0
+    , sop-core      ^>=0.5.0.0
+
+  -- staged stream fusion: monadic
+  exposed-modules:
+    Staged.Stream
+    Staged.Stream.Combinators
+    Staged.Stream.Convenience
+    Staged.Stream.Directory
+    Staged.Stream.Step
+    Staged.Stream.Type
+
+  -- staged stream fusion: pure
+  exposed-modules:
+    Staged.Stream.Pure
+    Staged.Stream.Pure.Combinators
+    Staged.Stream.Pure.Convenience
+    Staged.Stream.Pure.Examples
+    Staged.Stream.Pure.Type
+
+  reexported-modules:
+    Staged.Compat,
+    Staged.Commons
+
+  -- some combinators need custom states, we collect them here
+  other-modules:      Staged.Stream.States
+
+  -- extras
+  exposed-modules:
+    Data.SOP.Fn
+    Data.SOP.Fn.All
+    Data.SOP.Fn.Append
+    Data.SOP.Fn.Concat
+    Data.SOP.Fn.ConcatMapAppend
+    Data.SOP.Fn.Cons
+    Data.SOP.Fn.Flatten
+    Data.SOP.Fn.LiftA2Cons
+    Data.SOP.Fn.MapAppend
+    Data.SOP.Fn.MapConcat
+    Data.SOP.Fn.MapCons
+    Data.SOP.Fn.Sequence
+    Data.SOP.Sh
+
+test-suite inspection
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  ghc-options:      -Wall
+  hs-source-dirs:   test
+  main-is:          Inspection.hs
+  other-modules:
+    Coutts
+    Inspection.StreamPure
+    Test.Tasty.Inspection
+
+  build-depends:
+    , base
+    , staged-streams
+    , template-haskell
+
+  -- test dependencies
+  build-depends:
+    , inspection-testing  ^>=0.4.2.2
+    , tasty               ^>=1.2.3
+    , tasty-hunit         ^>=0.10.0.2
+
+test-suite qc
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  ghc-options:      -Wall
+  hs-source-dirs:   test
+  main-is:          QC.hs
+  other-modules:
+  build-depends:
+    , base
+    , staged-streams
+    , template-haskell
+
+  -- test dependencies
+  build-depends:
+    , QuickCheck        ^>=2.13.2
+    , tasty             ^>=1.2.3
+    , tasty-quickcheck  ^>=0.10.1
+
+test-suite families
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  ghc-options:      -Wall
+  hs-source-dirs:   test
+  main-is:          Families.hs
+  build-depends:
+    , base
+    , generics-sop
+    , staged-streams
+
+  -- test dependencies
+  build-depends:
+    , QuickCheck            ^>=2.13.2
+    , quickcheck-instances  ^>=0.3.22
+    , tasty                 ^>=1.2.3
+    , tasty-quickcheck      ^>=0.10.1

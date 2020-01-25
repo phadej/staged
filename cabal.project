@@ -1,0 +1,12 @@
+packages: staged-commons
+packages: staged-examples
+packages: staged-streams
+packages: staged-streams-resourcet
+
+tests: True
+
+package staged-streams
+  -- ghc-options: -fmax-valid-hole-fits=0
+
+package staged-examples
+  optimization: 2
