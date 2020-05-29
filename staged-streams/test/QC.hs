@@ -74,4 +74,27 @@ main = defaultMain $ testGroup "QuickCheck"
                 (S.drop (sint 1) $ S.enumFromTo'' (sint 4))
                 (\_ -> strue))
         in prop
+
+    , testProperty "zipWith" $
+        let prop :: [Int] -> [Int] -> Property
+            prop xs ys = zipWith (+) xs ys ===
+                $$(S.toList sunit $ S.zipWith [|| (+) ||]
+                    (S.fromList $ sconst [|| xs ||])
+                    (S.fromList $ sconst [|| ys ||]))
+        in prop
+
+    , testProperty "zipWith" $
+        let prop :: [Int] -> [Int] -> Property
+            prop xs ys = alignWith id id (+) xs ys ===
+                $$(S.toList sunit $ S.alignWith sid sid [|| (+) ||]
+                    (S.fromList $ sconst [|| xs ||])
+                    (S.fromList $ sconst [|| ys ||]))
+        in prop
     ]
+
+alignWith :: (a -> c) -> (b -> c) -> (a -> b -> c) -> [a] -> [b] -> [c]
+alignWith f g h = aux where
+    aux []     []     = []
+    aux []     ys     = map g ys
+    aux xs     []     = map f xs
+    aux (x:xs) (y:ys) = h x y : aux xs ys

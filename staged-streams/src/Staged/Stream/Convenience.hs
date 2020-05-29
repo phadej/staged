@@ -32,11 +32,11 @@ import Staged.Stream.Type
 -- 'Staged.Stream.Combinators.traversePipe' :: forall a b m. 'Monad' m => ('C' a -> 'C' (m b)) -> 'StreamM' m a b
 -- 'Staged.Stream.Combinators.traversePipe' f = 'mkStreamM' start step where
 --     start :: 'C' a -> 'Maybe' ('C' (m b))
---     start a = 'Just' ('C' (f a))
+--     start a = 'Just' (f a)
 --
 --     step :: 'Maybe' ('C' (m b)) -> ('Step' ('C' b) ('Maybe' ('C' (m b))) -> 'C' (m r)) -> 'C' (m r)
---     step 'Nothing'       k = k 'Stop'
---     step ('Just' ('C' mb)) k = mb '>>>=' \\b -> k ('Emit' b 'Nothing')
+--     step 'Nothing'   k = k 'Stop'
+--     step ('Just' mb) k = mb '>>>=' \\b -> k ('Emit' b 'Nothing')
 -- @
 --
 -- /Note:/ you should prefer using 'Staged.Stream.Pure.Combinators.map' combinator if

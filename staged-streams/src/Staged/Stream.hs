@@ -1,8 +1,15 @@
 -- | Monadic staged streams.
 module Staged.Stream (
-    module Staged.Stream.Type,
+    -- * Stream
+    StreamM (..),
+    Step (..),
+    mkStreamM,
+    -- * Combinators
+    --
+    -- | See "Staged.Stream.Pure" for introduction to combinators.
+    --   Remember that monadic 'StreamM' is like @a -> ListT m b@ function,
+    --   and not for @a -> m [b]@ or @a -> [m b]@.
     module Staged.Stream.Combinators,
-    module Staged.Stream.Convenience,
     ) where
 
 import Staged.Stream.Type

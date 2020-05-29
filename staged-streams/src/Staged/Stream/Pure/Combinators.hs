@@ -29,6 +29,7 @@ module Staged.Stream.Pure.Combinators (
     zipWith,
     repeat,
     -- * Aligning
+    alignWith,
     -- * Recursion
     bfsTree,
     -- * Pipes
@@ -57,8 +58,8 @@ import Staged.Stream.Pure.Convenience
 -- Construction
 -------------------------------------------------------------------------------
 
--- | 
--- 
+-- |
+--
 -- @
 -- 'singleton' :: C b -> 'Stream' a b
 -- 'singleton' b = 'map' ([|| const ||] @@ b)
@@ -222,7 +223,7 @@ append (MkStream startL stepsL) (MkStream startR stepsR) =
             Stop -> k Stop
             Skip   yss' -> k (Skip   (AppR yss'))
             Emit b yss' -> k (Emit b (AppR yss'))
-        
+
 empty :: Stream a b
 empty = mkStream (\_ -> ()) $ \() k -> k Stop
 
@@ -269,14 +270,51 @@ repeat a = mkStream (\_ -> ()) $ \() k -> k (Emit (toCode a) ())
 -- Aligning
 -------------------------------------------------------------------------------
 
--- TODO
+-- |
+--
+-- @
+-- 'alignWith' :: (C a -> C c) -> (C b -> C c) -> (C a -> C b -> C c)
+--             -> 'Stream' i a -> 'Stream' i b -> 'Stream' i c
+-- @
+alignWith
+    :: forall i a b c ac bc abc. (ToCodeFn a c ac, ToCodeFn b c bc, ToCodeFn2 a b c abc)
+    => ac -> bc -> abc
+    -> Stream i a -> Stream i b -> Stream i c
+alignWith ac bc abc (MkStream start0 steps0) (MkStream start1 steps1) =
+    mkStream (\i -> AlignL (start0 i) (start1 i)) (steps steps0 steps1)
+  where
+    steps
+        :: (forall r'. SOP C xss -> (Step (C a) (SOP C xss) -> C r') -> C r')
+        -> (forall r'. SOP C yss -> (Step (C b) (SOP C yss) -> C r') -> C r')
+        -> Align a xss yss
+        -> (Step (C c) (Align a xss yss) -> C r)
+        -> C r
+    steps f _ (AlignL xss yss) k = f xss $ \case
+        Stop        -> k (Skip (AlignDrainR yss))
+        Skip   xss' -> k (Skip (AlignL xss' yss))
+        Emit a xss' -> k (Skip (AlignR a xss' yss))
+
+    steps _ g (AlignR a xss yss) k = g yss $ \case
+        Stop        -> k (Emit (toFn ac a) (AlignDrainL xss))
+        Skip   yss' -> k (Skip (AlignR a xss yss'))
+        Emit b yss' -> k (Emit (toFn2 abc a b) (AlignL xss yss'))
+
+    steps f _ (AlignDrainL xss) k = f xss $ \case
+        Stop        -> k Stop
+        Skip   xss' -> k (Skip             (AlignDrainL xss'))
+        Emit a xss' -> k (Emit (toFn ac a) (AlignDrainL xss'))
+
+    steps _ g (AlignDrainR yss) k = g yss $ \case
+        Stop        -> k Stop
+        Skip   yss' -> k (Skip             (AlignDrainR yss'))
+        Emit b yss' -> k (Emit (toFn bc b) (AlignDrainR yss'))
 
 -------------------------------------------------------------------------------
 -- Recursion
 -------------------------------------------------------------------------------
 
 -- |
--- 
+--
 -- @
 -- 'bfsTree' :: 'Stream' a a -> (C a -> C Bool) -> 'Stream' a a
 -- @

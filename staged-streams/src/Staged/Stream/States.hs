@@ -26,10 +26,18 @@ data App a xss yss
     | AppR       (SOP C yss)
   deriving (GHC.Generic)
 
--- | For @zip@ combinator
+-- | For @zipWith@ combinator
 data Zip a xss yss
     = ZipL       (SOP C xss) (SOP C yss)
     | ZipR (C a) (SOP C xss) (SOP C yss)
+  deriving (GHC.Generic)
+
+-- | For @alignWith" combinator
+data Align a xss yss
+    = AlignL            (SOP C xss) (SOP C yss)
+    | AlignR      (C a) (SOP C xss) (SOP C yss)
+    | AlignDrainL       (SOP C xss)
+    | AlignDrainR                   (SOP C yss)
   deriving (GHC.Generic)
 
 -- | For @bfsTree@ combinator

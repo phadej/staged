@@ -31,6 +31,7 @@ import Staged.Commons
 -- Type families
 -------------------------------------------------------------------------------
 
+-- | A utility type-class powering convenience stream creation functions.
 class FlattenCode s xss | s -> xss where
     allFlattenCode :: Proxy s -> (SListI2 xss => r) -> r
 
