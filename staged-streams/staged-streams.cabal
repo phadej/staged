@@ -44,8 +44,7 @@ library
     , transformers      ^>=0.5.2.0
 
   -- other dependencies
-  build-depends:
-    , sop-core  ^>=0.5.0.0
+  build-depends:      sop-core ^>=0.5.0.0
 
   -- staged stream fusion: monadic
   exposed-modules:
@@ -68,10 +67,14 @@ library
     Staged.Compat,
     Staged.Commons
 
-  -- some combinators need custom states, we collect them here
-  other-modules:      Staged.Stream.States
+  -- some internal, stuff:
+  -- * combinators need custom states, we collect them here
+  -- * convenience machinery
+  other-modules:
+    Staged.Stream.Internal
+    Staged.Stream.States
 
-  -- extras
+  -- type families on lists
   other-modules:
     Data.SOP.Fn
     Data.SOP.Fn.All
@@ -86,7 +89,6 @@ library
     Data.SOP.Fn.MapCons
     Data.SOP.Fn.Sequence
     Data.SOP.Sh
-    Staged.Stream.Internal
 
 test-suite inspection
   default-language: Haskell2010
