@@ -22,11 +22,11 @@ module Data.SOP.Fn.LiftA2Cons (
     ) where
 
 import Data.Bifunctor (first)
+import Data.SOP
 import Data.SOP.Fn.All
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.MapCons
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type family

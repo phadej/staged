@@ -20,10 +20,10 @@ module Data.SOP.Fn.Sequence (
     allSequence,
     ) where
 
+import Data.SOP
 import Data.SOP.Fn.All
 import Data.SOP.Fn.LiftA2Cons
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type families

@@ -43,7 +43,7 @@ module Staged.Stream.Pure.Combinators (
 import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
 -- import Prelude (undefined)
 
-import Generics.SOP (SOP (..), SListI2)
+import Data.SOP (SOP (..), SListI2)
 
 import qualified Control.Category as  C
 

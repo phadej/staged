@@ -9,7 +9,7 @@
 module Data.SOP.Sh where
 
 import Data.Kind (Constraint, Type)
-import Generics.SOP
+import Data.SOP
 
 type Sh = Sh' Top
 

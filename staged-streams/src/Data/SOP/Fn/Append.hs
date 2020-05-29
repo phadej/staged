@@ -28,7 +28,7 @@ module Data.SOP.Fn.Append (
     prAppend,
     ) where
 
-import Generics.SOP
+import Data.SOP
 import Data.SOP.Sh
 
 -------------------------------------------------------------------------------

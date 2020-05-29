@@ -15,12 +15,11 @@ import Test.QuickCheck.Instances ()
 import Test.Tasty                (defaultMain, testGroup)
 import Test.Tasty.QuickCheck     (testProperty)
 
+import Data.SOP
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.Concat
 import Data.SOP.Fn.MapAppend
 import Data.SOP.Sh
-
-import Generics.SOP
 
 import qualified GHC.TypeLits
 

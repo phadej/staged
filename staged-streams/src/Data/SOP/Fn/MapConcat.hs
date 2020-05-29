@@ -20,10 +20,10 @@ module Data.SOP.Fn.MapConcat (
     allMapConcat,
     ) where
 
+import Data.SOP
 import Data.SOP.Fn.All
 import Data.SOP.Fn.Concat
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type families

@@ -29,16 +29,11 @@ import Language.Haskell.TH.Lib    (ExpQ, TExpQ)
 import Language.Haskell.TH.Syntax (unTypeQ, unsafeTExpCoerce)
 
 import qualified Language.Haskell.TH.Syntax as TH
-import qualified Generics.SOP                as SOP
-import qualified GHC.Generics                as GHC
 
 -- | A 'Code' newtype as in https://github.com/ghc-proposals/ghc-proposals/pull/195
 --
 -- Yet I use constructor name 'C' for brevity.
 newtype Code m a = C { examineCode :: m (TExp a) }
-  deriving (GHC.Generic)
-
-instance SOP.Generic (Code m a)
 
 -- | Short alias for @'Code' 'Q'@
 type C = Code Q

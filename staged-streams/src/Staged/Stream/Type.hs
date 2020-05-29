@@ -1,9 +1,9 @@
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE EmptyCase           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -13,16 +13,17 @@ module Staged.Stream.Type (
     Step (..),
     ) where
 
-import Data.Kind (Type)
-import Generics.SOP
+import Data.Kind  (Type)
+import Data.Proxy (Proxy (..))
+import Data.SOP   (NP (..), NS (..), SListI2, SOP (..))
 
 import qualified Control.Category as C
 
-import Staged.Commons
-import Staged.Stream.Step
-import Staged.Stream.States
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.ConcatMapAppend
+import Staged.Commons
+import Staged.Stream.States
+import Staged.Stream.Step
 
 -------------------------------------------------------------------------------
 -- Type definition
@@ -30,7 +31,7 @@ import Data.SOP.Fn.ConcatMapAppend
 
 -- | Monadic staged streams.
 --
--- Think of @'StreamM' m a b@ as @a -> ListT m b@, i.e. 
+-- Think of @'StreamM' m a b@ as @a -> ListT m b@, i.e.
 -- a machine which will produce some @b@ values when triggered by single @a@ value.
 --
 data StreamM :: (Type -> Type) -> Type -> Type -> Type where

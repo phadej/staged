@@ -22,12 +22,12 @@ module Data.SOP.Fn.Flatten (
     allFLATTEN,
     ) where
 
+import Data.SOP
 import Data.SOP.Fn.All
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.MapConcat
 import Data.SOP.Fn.Sequence
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- value-level function, simple ins't it?

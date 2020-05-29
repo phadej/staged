@@ -12,7 +12,7 @@ module Staged.Stream.Pure.Examples (
 ) where
 
 import Prelude hiding (enumFromTo)
-import Generics.SOP
+import Data.SOP (SOP (..), NS (..), NP (..))
 
 import Staged.Commons
 import Staged.Stream.Step

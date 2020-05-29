@@ -25,11 +25,11 @@ module Data.SOP.Fn.ConcatMapAppend (
 
 import Data.Bifunctor (first)
 
+import Data.SOP
 import Data.SOP.Fn.Cons
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.MapAppend
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type families

@@ -57,7 +57,7 @@ module Staged.Stream.Combinators (
 import Prelude (($), Bool(..), Either (..), Int, subtract, (<), (+), (.), Maybe (..), Monad, id)
 -- import Prelude (undefined)
 
-import Generics.SOP (SOP (..), SListI2)
+import Data.SOP (SOP (..), SListI2)
 import Data.Functor.Identity (Identity (..))
 
 import qualified Control.Category as  C
@@ -86,7 +86,7 @@ fromPure (MkStream start step) = MkStreamM start step
 --
 toPure :: StreamM Identity a b -> Stream a b
 toPure (MkStreamM start steps) = MkStream start $ \curr k ->
-    C [|| runIdentity ||] @@ (steps curr $ \s -> C [|| Identity ||] @@ k s )
+    [|| runIdentity ||] @@ (steps curr $ \s -> C [|| Identity ||] @@ k s )
 
 -------------------------------------------------------------------------------
 -- Construction
