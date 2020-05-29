@@ -37,6 +37,8 @@ module Staged.Stream.Combinators (
     repeat,
     repeatM,
     -- * Aligning
+    alignWith,
+    alignWithM,
     -- * Recursion
     bfsTreeM,
     -- * Pipes
@@ -183,7 +185,7 @@ replicateM i a = take i (repeatM a)
 -------------------------------------------------------------------------------
 
 -- |
--- 
+--
 -- @
 -- 'map' :: (C b -> C c) -> 'Stream' a b -> 'Stream' a c
 -- @
@@ -333,7 +335,7 @@ append (MkStreamM startL stepsL) (MkStreamM startR stepsR) =
             Stop -> k Stop
             Skip   yss' -> k (Skip   (AppR yss'))
             Emit b yss' -> k (Emit b (AppR yss'))
-        
+
 empty :: StreamM m a b
 empty = fromPure Pure.empty
 
@@ -411,11 +413,93 @@ repeatM :: (Monad m, IsCode (m a) cma) => cma -> StreamM m i a
 repeatM a = mkStreamM (\_ -> ()) $ \() k -> toCode a >>>= \a' -> k (Emit a' ())
 
 -------------------------------------------------------------------------------
+-- Aligning
+-------------------------------------------------------------------------------
+
+-- |
+--
+-- @
+-- 'alignWith' :: (C a -> C c) -> (C b -> C c) -> (C a -> C b -> C c)
+--             -> 'StreamM' i a -> 'StreamM' i b -> 'StreamM' i c
+-- @
+alignWith
+    :: forall i a b c m ac bc abc. (ToCodeFn a c ac, ToCodeFn b c bc, ToCodeFn2 a b c abc)
+    => ac -> bc -> abc
+    -> StreamM m i a -> StreamM m i b -> StreamM m i c
+alignWith ac bc abc (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
+    mkStreamM (\i -> AlignL (start0 i) (start1 i)) (steps steps0 steps1)
+  where
+    steps
+        :: (forall r'. SOP C xss -> (Step (C a) (SOP C xss) -> C (m r')) -> C (m r'))
+        -> (forall r'. SOP C yss -> (Step (C b) (SOP C yss) -> C (m r')) -> C (m r'))
+        -> Align a xss yss
+        -> (Step (C c) (Align a xss yss) -> C (m r))
+        -> C (m r)
+    steps f _ (AlignL xss yss) k = f xss $ \case
+        Stop        -> k (Skip (AlignDrainR yss))
+        Skip   xss' -> k (Skip (AlignL xss' yss))
+        Emit a xss' -> k (Skip (AlignR a xss' yss))
+
+    steps _ g (AlignR a xss yss) k = g yss $ \case
+        Stop        -> k (Emit (toFn ac a) (AlignDrainL xss))
+        Skip   yss' -> k (Skip (AlignR a xss yss'))
+        Emit b yss' -> k (Emit (toFn2 abc a b) (AlignL xss yss'))
+
+    steps f _ (AlignDrainL xss) k = f xss $ \case
+        Stop        -> k Stop
+        Skip   xss' -> k (Skip             (AlignDrainL xss'))
+        Emit a xss' -> k (Emit (toFn ac a) (AlignDrainL xss'))
+
+    steps _ g (AlignDrainR yss) k = g yss $ \case
+        Stop        -> k Stop
+        Skip   yss' -> k (Skip             (AlignDrainR yss'))
+        Emit b yss' -> k (Emit (toFn bc b) (AlignDrainR yss'))
+
+-- |
+--
+-- @
+-- 'alignWith' :: (C a -> C (m c)) -> (C b -> C (m c)) -> (C a -> C b -> C (m c))
+--             -> 'StreamM' i a -> 'StreamM' i b -> 'StreamM' i c
+-- @
+alignWithM
+    :: forall i a b c m ac bc abc. (Monad m, ToCodeFn a (m c) ac, ToCodeFn b (m c) bc, ToCodeFn2 a b (m c) abc)
+    => ac -> bc -> abc
+    -> StreamM m i a -> StreamM m i b -> StreamM m i c
+alignWithM ac bc abc (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
+    mkStreamM (\i -> AlignL (start0 i) (start1 i)) (steps steps0 steps1)
+  where
+    steps
+        :: (forall r'. SOP C xss -> (Step (C a) (SOP C xss) -> C (m r')) -> C (m r'))
+        -> (forall r'. SOP C yss -> (Step (C b) (SOP C yss) -> C (m r')) -> C (m r'))
+        -> Align a xss yss
+        -> (Step (C c) (Align a xss yss) -> C (m r))
+        -> C (m r)
+    steps f _ (AlignL xss yss) k = f xss $ \case
+        Stop        -> k (Skip (AlignDrainR yss))
+        Skip   xss' -> k (Skip (AlignL xss' yss))
+        Emit a xss' -> k (Skip (AlignR a xss' yss))
+
+    steps _ g (AlignR a xss yss) k = g yss $ \case
+        Stop        -> toFn ac a     >>>= \c -> k (Emit c (AlignDrainL xss))
+        Skip   yss' ->                          k (Skip   (AlignR a xss yss'))
+        Emit b yss' -> toFn2 abc a b >>>= \c -> k (Emit c (AlignL xss yss'))
+
+    steps f _ (AlignDrainL xss) k = f xss $ \case
+        Stop        ->                      k Stop
+        Skip   xss' ->                      k (Skip   (AlignDrainL xss'))
+        Emit a xss' -> toFn ac a >>>= \c -> k (Emit c (AlignDrainL xss'))
+
+    steps _ g (AlignDrainR yss) k = g yss $ \case
+        Stop        ->                      k Stop
+        Skip   yss' ->                      k (Skip   (AlignDrainR yss'))
+        Emit b yss' -> toFn bc b >>>= \c -> k (Emit c (AlignDrainR yss'))
+
+-------------------------------------------------------------------------------
 -- Recursion
 -------------------------------------------------------------------------------
 
 -- |
--- 
+--
 -- @
 -- 'bfsTreeM' :: 'StreamM' m a a -> (C a -> C (m Bool)) -> 'StreamM' m a a
 -- @
@@ -478,7 +562,7 @@ traversePipe f = mkStreamM (Just . toFn f) step where
     step (Just mb) k = mb >>>= \b -> k (Emit b Nothing)
 
 -- | Similar to 'filter', prefer using 'filter'.
--- 
+--
 -- @
 -- 'filterPipe' :: (C a -> C Bool) -> 'StreamM' m a a
 -- @
@@ -552,7 +636,7 @@ foldlM op e z (MkStreamM xs steps0) =
         Stop        -> sreturn acc
         Skip   next -> loop next acc
         Emit b next -> toFn2 op acc b >>>= loop next
- 
+
 -- |
 --
 -- @

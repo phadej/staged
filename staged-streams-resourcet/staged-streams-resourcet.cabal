@@ -1,10 +1,10 @@
 cabal-version: 2.2
 name:          staged-streams-resourcet
-version:       0
+version:       0.1
 synopsis:      Combinators for staged using resourcet
 category:      Staged, Streaming
 description:
-  Zero-overhead streams using staged programming (i.e. Typed Template Haskell). 
+  Zero-overhead streams using staged programming (i.e. Typed Template Haskell).
   .
   This package contains combinators relying on 'MonadResource'
   type-class from the @resourcet@ package, in other words
@@ -32,14 +32,14 @@ library
     , transformers      ^>=0.5.2.0
 
   -- staged dependency
-  build-depends:    staged-streams ^>=0
+  build-depends:    staged-streams ^>=0.1
 
   -- other dependencies
   build-depends:
     , generics-sop  ^>=0.5.0.0
     , resourcet     ^>=1.2.2
 
-  exposed-modules:  
-    Staged.Stream.ResourceT
-    Staged.Stream.Handle
+  exposed-modules:
     Staged.Stream.ByteString
+    Staged.Stream.Handle
+    Staged.Stream.ResourceT

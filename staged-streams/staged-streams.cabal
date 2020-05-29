@@ -1,6 +1,6 @@
 cabal-version: 2.2
 name:          staged-streams
-version:       0
+version:       0.1
 synopsis:      Zero-overhead streams using staged programming
 category:      Staged, Streaming
 description:
@@ -20,7 +20,7 @@ description:
   for programming in Typed Template Haskell in "Staged.Commons" module.
   .
   * bindings to @directory@ package in "Staged.Stream.Directory".
-  More utilities is in the @staged-resourcet@ package.
+  More utilities is in the @staged-streams-resourcet@ package.
 
 author:        Oleg Grenrus, Andres Löh
 maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
@@ -46,7 +46,6 @@ library
   -- other dependencies
   build-depends:
     , sop-core  ^>=0.5.0.0
-    , these     >=1       && <1.2
 
   -- staged stream fusion: monadic
   exposed-modules:

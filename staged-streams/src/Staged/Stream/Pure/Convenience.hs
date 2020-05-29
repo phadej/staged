@@ -36,14 +36,14 @@ import Staged.Stream.Pure.Type
 -- 'Staged.Stream.Pure.Combinators.mapPipe' :: forall a b. ('C' a -> 'C' b) -> 'Stream' a b
 -- 'Staged.Stream.Pure.Combinators.mapPipe' f = 'mkStream' start step where
 --     start :: 'C' a -> 'Maybe' ('C' b)
---     start a = 'Just' ('C' (f a))
+--     start a = 'Just' (f a)
 --
 --     step :: 'Maybe' ('C' b) -> ('Step' ('C' b) ('Maybe' ('C' b)) -> 'C' r) -> 'C' r
---     step 'Nothing'      k = k 'Stop'
---     step ('Just' ('C' b)) k = k ('Emit' b 'Nothing')
+--     step 'Nothing'  k = k 'Stop'
+--     step ('Just' b) k = k ('Emit' b 'Nothing')
 -- @
 --
--- /Note:/ you should prefer using 'Staged.Stream.Pure.Combinators.map' combinator if
+-- /Note:/ you should prefer using 'Staged.Stream.Combinators.traverse' combinator if
 -- possible, as it doesn't make state space bigger.
 --
 mkStream

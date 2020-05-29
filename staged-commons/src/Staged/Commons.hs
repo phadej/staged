@@ -34,8 +34,7 @@ module Staged.Commons (
     -- * let (TODO)
 
     -- * letrec
-    LetRec,
-    LetRec2,
+    Fixedpoint,
     sletrec_SOP,
     sletrec1_SOP,
     sletrec_NSNP,
@@ -298,15 +297,15 @@ sconst = const . toCode
 -- LetRec
 -------------------------------------------------------------------------------
 
-type LetRec a b = ((a -> b) -> (a -> b)) -> (a -> b)
-type LetRec2 a b c = ((a -> b -> c) -> (a -> b -> c)) -> (a -> b -> c)
+-- | Type of 'fix'. Fixedpoint of @a@.
+type Fixedpoint a = (a -> a) -> a
 
 sletrec_SOP
-    :: forall xss b. SListI2 xss => LetRec (SOP C xss) (C b)
+    :: forall xss b. SListI2 xss => Fixedpoint (SOP C xss -> C b)
 sletrec_SOP f x = sletrec_NSNP (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
 
 sletrec_NSNP
-    :: forall xss b. SListI2 xss => LetRec (NS (NP C) xss) (C b)
+    :: forall xss b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
 sletrec_NSNP body args0 = liftCode $ do
     states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
     anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
@@ -332,12 +331,12 @@ sletrec_NSNP body args0 = liftCode $ do
 
 -- | 'sletrec_SOP' with additional argument in each state.
 sletrec1_SOP
-    :: forall xss b c. SListI2 xss => LetRec2 (SOP C xss) (C b) (C c)
+    :: forall xss b c. SListI2 xss => Fixedpoint (SOP C xss -> C b -> C c)
 sletrec1_SOP f x = sletrec1_NSNP (\u v w -> f (u . unSOP) (SOP v) w) (unSOP x)
 
 -- | 'sletrec_NSNP' with additional argument in each state.
 sletrec1_NSNP
-    :: forall xss b c. SListI2 xss => LetRec2 (NS (NP C) xss) (C b) (C c)
+    :: forall xss b c. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b -> C c)
 sletrec1_NSNP body args0 b0 = liftCode $ do
     states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
     anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
