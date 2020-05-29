@@ -5,8 +5,9 @@ module Staged.Stream.Step (
     Step (..),
     ) where
 
+-- | Step of state machine
 data Step a s
-    = Stop
-    | Skip s     -- our finite state automaton might not produce a value
-    | Emit a s
+    = Stop       -- ^ stop
+    | Skip s     -- ^ go to next step
+    | Emit a s   -- ^ go to next stop producing output.
   deriving (Functor, Foldable, Traversable)
