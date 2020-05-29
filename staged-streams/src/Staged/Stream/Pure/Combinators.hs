@@ -28,6 +28,7 @@ module Staged.Stream.Pure.Combinators (
     -- * Zipping
     zipWith,
     repeat,
+    -- * Aligning
     -- * Recursion
     bfsTree,
     -- * Pipes
@@ -39,7 +40,7 @@ module Staged.Stream.Pure.Combinators (
     toList,
     ) where
 
-import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..))
+import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
 -- import Prelude (undefined)
 
 import Generics.SOP (SOP (..), SListI2)
@@ -59,7 +60,7 @@ import Staged.Stream.Pure.Convenience
 -- | 
 -- 
 -- @
--- 'singleton' :: 'C' b -> 'Stream' a b
+-- 'singleton' :: C b -> 'Stream' a b
 -- 'singleton' b = 'map' ([|| const ||] @@ b)
 -- @
 --
@@ -73,13 +74,18 @@ singleton b = mkStream start step where
 -- |
 --
 -- @
--- 'fromList' :: ('C' a -> 'C' [b]) -> 'Stream' a b
+-- 'fromList' :: (C a -> C [b]) -> 'Stream' a b
 -- @
 fromList :: ToCodeFn a [b] fn => fn -> Stream a b
 fromList f = unfold f $ \bs k -> scaseList bs
     (k Nothing)
     (\b bs' -> k (Just (b, bs')))
 
+-- | Unfold
+--
+-- @
+-- 'unfold' :: (C a -> C b) -> (C b -> CPS (Maybe (C c, C b))) -> 'Stream' a c
+-- @
 unfold
     :: forall a b c fn. ToCodeFn a b fn
     => fn
@@ -94,15 +100,15 @@ unfold start f = mkStream (toFn start) steps where
 -- |
 --
 -- @
--- 'iterate' :: ('C' a -> 'C' a) -> 'C' a -> 'Stream' i a
+-- 'iterate' :: (C a -> C a) -> 'Stream' a a
 -- @
-iterate :: (IsCode a ca, ToCodeFn a a endo) => endo -> ca -> Stream i a
-iterate f z = mkStream (\_ -> toCode z) $ \curr k -> k (Emit curr (toFn f curr))
+iterate :: (ToCodeFn a a endo) => endo -> Stream a a
+iterate f = mkStream id $ \curr k -> k (Emit curr (toFn f curr))
 
 -- |
 --
 -- @
--- 'replicate' :: 'C' Int -> 'C' a -> 'Stream' i a
+-- 'replicate' :: C Int -> C a -> 'Stream' i a
 -- @
 replicate :: (IsCode a ca, IsCode Int ci) => ci -> ca -> Stream i a
 replicate i a = take i (repeat a)
@@ -111,29 +117,47 @@ replicate i a = take i (repeat a)
 -- Transformations
 -------------------------------------------------------------------------------
 
-map :: forall a b c fn. ToCodeFn a b fn => fn -> Stream c a -> Stream c b
+-- |
+--
+-- @
+-- 'map' :: (C b -> C c) -> 'Stream' a b -> 'Stream' a c
+-- @
+map :: forall a b c fn. ToCodeFn b c fn => fn -> Stream a b -> Stream a c
 map f (MkStream s0 steps0) = MkStream s0 (go steps0) where
-    go :: (SOP C xss -> (Step (C a) (SOP C xss) -> C r) -> C r)
-       -> (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
+    go :: (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
+       -> (SOP C xss -> (Step (C c) (SOP C xss) -> C r) -> C r)
     go steps s k = steps s $ \case
         Stop      -> k Stop
         Skip   s' -> k (Skip s')
         Emit a s' -> k (Emit (toFn f a) s')
-
-mapWithInput :: forall a b c. (C a -> C b -> C c) -> Stream a b -> Stream a c
+-- |
+--
+-- @
+-- 'mapWithInput' :: (C a -> C b -> C c) -> 'Stream' a b -> 'Stream' a c
+-- @
+mapWithInput :: forall a b c abc. ToCodeFn2 a b c abc => abc -> Stream a b -> Stream a c
 mapWithInput f (MkStream s0 steps0) =
     mkStream (\a -> (a, s0 a)) $ \(a, curr) k -> steps0 curr $ \case
         Stop        -> k Stop
         Skip   next -> k (Skip (a, next))
-        Emit b next -> k (Emit (f a b) (a, next))
+        Emit b next -> k (Emit (toFn2 f a b) (a, next))
+-- |
+--
+-- @
+-- 'lmap' :: (C a -> C b) -> 'Stream' b c -> 'Stream' a c
+-- @
+lmap :: forall a b c ab. ToCodeFn a b ab => ab -> Stream b c -> Stream a c
+lmap f (MkStream s0 steps0) = MkStream (s0 . toFn f) steps0
 
-lmap :: forall a b c. (C a -> C b) -> Stream b c -> Stream a c
-lmap f (MkStream s0 steps0) = MkStream (s0 . f) steps0
-
-filter :: forall a c pred. ToCodeFn a Bool pred => pred -> Stream c a -> Stream c a
+-- |
+--
+-- @
+-- 'filter' :: (C b -> C Bool) -> 'Stream' a b -> 'Stream' a b
+-- @
+filter :: forall a b pred. ToCodeFn b Bool pred => pred -> Stream a b -> Stream a b
 filter p (MkStream s0 steps0) = MkStream s0 (go steps0) where
-    go :: (SOP C xss -> (Step (C a) (SOP C xss) -> C r) -> C r)
-       -> (SOP C xss -> (Step (C a) (SOP C xss) -> C r) -> C r)
+    go :: (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
+       -> (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
     go steps s k = steps s $ \case
         Stop      -> k Stop
         Skip   s' -> k (Skip s')
@@ -146,6 +170,11 @@ filter p (MkStream s0 steps0) = MkStream s0 (go steps0) where
 -- Take and drop
 -------------------------------------------------------------------------------
 
+-- |
+--
+-- @
+-- 'take' :: C Int -> 'Stream' a b -> 'Stream' a b
+-- @
 take :: IsCode Int n => n -> Stream a b -> Stream a b
 take n (MkStream start steps) =
     mkStream (\a -> (C [|| 0 ||], start a)) $ \(i, xss) k -> steps xss $ \case
@@ -156,6 +185,11 @@ take n (MkStream start steps) =
             (k (Emit b (C [|| (1 +) ||] @@ i, xss')))
             (k Stop)
 
+-- |
+--
+-- @
+-- 'drop' :: C Int -> 'Stream' a b -> 'Stream' a b
+-- @
 drop :: IsCode Int n => n -> Stream a b -> Stream a b
 drop n (MkStream start steps) =
     mkStream (\a -> DropL (toCode n) (start a)) $ \step k -> case step of
@@ -199,7 +233,7 @@ empty = mkStream (\_ -> ()) $ \() k -> k Stop
 -- |
 --
 -- @
--- 'zipWith' :: ('C' a -> 'C' b -> 'C' c) -> 'Stream' i a -> 'Stream' i b -> 'Stream' i c
+-- 'zipWith' :: (C a -> C b -> C c) -> 'Stream' i a -> 'Stream' i b -> 'Stream' i c
 -- @
 zipWith
     :: forall i abc a b c. ToCodeFn2 a b c abc
@@ -226,19 +260,30 @@ zipWith h (MkStream start0 steps0) (MkStream start1 steps1) =
 -- |
 --
 -- @
--- 'repeat' :: 'C' a -> 'Stream' i a
+-- 'repeat' :: C a -> 'Stream' i a
 -- @
 repeat :: IsCode a ca => ca -> Stream i a
 repeat a = mkStream (\_ -> ()) $ \() k -> k (Emit (toCode a) ())
 
 -------------------------------------------------------------------------------
+-- Aligning
+-------------------------------------------------------------------------------
+
+-- TODO
+
+-------------------------------------------------------------------------------
 -- Recursion
 -------------------------------------------------------------------------------
 
+-- |
+-- 
+-- @
+-- 'bfsTree' :: 'Stream' a a -> (C a -> C Bool) -> 'Stream' a a
+-- @
 bfsTree
-    :: forall a.
-       Stream a a               -- ^ endo-stream
-    -> (C a -> C Bool)  -- ^ whether to recurse on a produced element
+    :: forall a predicate. ToCodeFn a Bool predicate
+    => Stream a a    -- ^ endo-stream
+    -> predicate     -- ^ whether to recurse on a produced element
     -> Stream a a
 bfsTree (MkStream start0 steps0) p = mk start0 steps0 where
     mk  :: forall xss. SListI2 xss
@@ -250,7 +295,7 @@ bfsTree (MkStream start0 steps0) p = mk start0 steps0 where
         steps2 (BfsNext curr) k = steps1 curr $ \case
             Stop        -> k Stop
             Skip   next -> k (Skip (BfsNext next))
-            Emit a next -> sIfThenElse (p a)
+            Emit a next -> sIfThenElse (toFn p a)
                 (k (Emit a (BfsStep (scons a snil) next)))
                 (k (Emit a (BfsNext next)))
 
@@ -259,7 +304,7 @@ bfsTree (MkStream start0 steps0) p = mk start0 steps0 where
                 (k Stop)
                 (\a as' -> k (Skip (BfsStep as' (start1 a))))
             Skip   next -> k (Skip (BfsStep as next))
-            Emit a next -> sIfThenElse (p a)
+            Emit a next -> sIfThenElse (toFn p a)
                 (k (Emit a (BfsStep (scons a as) next)))
                 (k (Emit a (BfsStep as next)))
 
@@ -267,10 +312,15 @@ bfsTree (MkStream start0 steps0) p = mk start0 steps0 where
 -- Pipes
 -------------------------------------------------------------------------------
 
+-- | Identity.
 idPipe :: Stream a a
 idPipe = C.id
 
 -- | Similar to 'map', prefer using 'map'.
+--
+-- @
+-- 'mapPipe' :: (C a -> C b) -> 'Stream' a b
+-- @
 mapPipe :: forall a b ab. ToCodeFn a b ab => ab -> Stream a b
 mapPipe f = mkStream start step where
     start :: C a -> Maybe (C b)
@@ -291,6 +341,10 @@ MkStream (\a -> SOP (Z (C (f a) :* Nil))) step where
 -}
 
 -- | Similar to 'filter', prefer using 'filter'.
+--
+-- @
+-- 'filterPipe' :: (C a -> C Bool) -> 'Stream' a a
+-- @
 filterPipe :: forall a predicate. ToCodeFn a Bool predicate => predicate -> Stream a a
 filterPipe p = mkStream Just step where
     step :: Maybe (C a) -> (Step (C a) (Maybe (C a)) -> C r) -> C r
@@ -318,6 +372,11 @@ filterPipe p =  MkStream (\a -> SOP (Z (C a :* Nil))) step where
 -- Elimination
 -------------------------------------------------------------------------------
 
+-- |
+--
+-- @
+-- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> 'Stream' a b -> GHCCode r
+-- @
 foldl :: forall r a b fn init start. (IsCode r init, IsCode a start, ToCodeFn2 r b r fn)
     => fn -> init -> start -> Stream a b -> GHCCode r
 foldl op e z (MkStream xs steps0) =
@@ -332,6 +391,11 @@ foldl op e z (MkStream xs steps0) =
         Skip   next -> loop next acc
         Emit b next -> loop next (toFn2 op acc b)
 
+-- |
+--
+-- @
+-- 'toList' :: C a -> 'Stream' a b -> GHCCode [b]
+-- @
 toList
     :: forall start a b. (IsCode a start)
     => start -> Stream a b -> GHCCode [b]

@@ -4,8 +4,14 @@
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Staged.Stream.Pure.Examples where
+module Staged.Stream.Pure.Examples (
+    enumFromTo,
+    enumFromTo',
+    enumFromTo'',
+    toZero,
+) where
 
+import Prelude hiding (enumFromTo)
 import Generics.SOP
 
 import Staged.Commons

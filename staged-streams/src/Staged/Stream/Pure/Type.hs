@@ -29,6 +29,11 @@ import Data.SOP.Fn.ConcatMapAppend
 -- Type definition
 -------------------------------------------------------------------------------
 
+-- | Pure staged streams.
+--
+-- Think of @'Stream' a b@ as @a -> [b]@, i.e. 
+-- a machine which will produce some @b@ values when triggered by single @a@ value.
+--
 data Stream :: Type -> Type -> Type where
     MkStream
         :: SListI2 xss

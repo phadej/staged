@@ -28,6 +28,11 @@ import Data.SOP.Fn.ConcatMapAppend
 -- Type definition
 -------------------------------------------------------------------------------
 
+-- | Monadic staged streams.
+--
+-- Think of @'StreamM' m a b@ as @a -> ListT m b@, i.e. 
+-- a machine which will produce some @b@ values when triggered by single @a@ value.
+--
 data StreamM :: (Type -> Type) -> Type -> Type -> Type where
     MkStreamM
         :: SListI2 xss

@@ -21,11 +21,6 @@ description:
   .
   * bindings to @directory@ package in "Staged.Stream.Directory".
   More utilities is in the @staged-resourcet@ package.
-  .
-  * a number of type-families over lists,
-  and corresponding transformations to 'NP', 'NS' etc structures
-  from @sop-core@ / @generics-sop@. See "Data.SOP.Fn" module.
-  These functions are used for plumbing of stream internals.
 
 author:        Oleg Grenrus, Andres Löh
 maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
@@ -52,6 +47,7 @@ library
   build-depends:
     , generics-sop  ^>=0.5.0.0
     , sop-core      ^>=0.5.0.0
+    , these         >=1       && <1.2
 
   -- staged stream fusion: monadic
   exposed-modules:
@@ -78,7 +74,7 @@ library
   other-modules:      Staged.Stream.States
 
   -- extras
-  exposed-modules:
+  other-modules:
     Data.SOP.Fn
     Data.SOP.Fn.All
     Data.SOP.Fn.Append
@@ -138,12 +134,26 @@ test-suite families
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
   ghc-options:      -Wall
-  hs-source-dirs:   test
+  hs-source-dirs:   test src
   main-is:          Families.hs
   build-depends:
     , base
     , generics-sop
-    , staged-streams
+
+  other-modules:
+    Data.SOP.Fn
+    Data.SOP.Fn.All
+    Data.SOP.Fn.Append
+    Data.SOP.Fn.Concat
+    Data.SOP.Fn.ConcatMapAppend
+    Data.SOP.Fn.Cons
+    Data.SOP.Fn.Flatten
+    Data.SOP.Fn.LiftA2Cons
+    Data.SOP.Fn.MapAppend
+    Data.SOP.Fn.MapConcat
+    Data.SOP.Fn.MapCons
+    Data.SOP.Fn.Sequence
+    Data.SOP.Sh
 
   -- test dependencies
   build-depends:
