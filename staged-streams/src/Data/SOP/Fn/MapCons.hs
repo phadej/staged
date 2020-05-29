@@ -21,8 +21,8 @@ module Data.SOP.Fn.MapCons (
     allMapCons,
     ) where
 
+import Data.SOP
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type families

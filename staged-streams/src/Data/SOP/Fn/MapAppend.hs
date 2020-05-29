@@ -21,9 +21,9 @@ module Data.SOP.Fn.MapAppend (
     mapAppend_SListI2,
     ) where
 
+import Data.SOP
 import Data.SOP.Fn.Append
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type families

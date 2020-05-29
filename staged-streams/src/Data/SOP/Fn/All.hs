@@ -5,8 +5,8 @@
 {-# LANGUAGE GADTs #-}
 module Data.SOP.Fn.All where
 
+import Data.SOP
 import Data.SOP.Sh
-import Generics.SOP
 
 prAll :: proxy c -> Proxy (All c)
 prAll _ = Proxy

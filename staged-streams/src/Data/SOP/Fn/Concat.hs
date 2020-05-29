@@ -24,9 +24,9 @@ module Data.SOP.Fn.Concat (
     prConcat,
     ) where
 
+import Data.SOP
 import Data.SOP.Fn.Append
 import Data.SOP.Sh
-import Generics.SOP
 
 -------------------------------------------------------------------------------
 -- Type family

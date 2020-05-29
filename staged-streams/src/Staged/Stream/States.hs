@@ -5,10 +5,9 @@
 module Staged.Stream.States where
 
 import Data.Proxy     (Proxy (..))
-import Generics.SOP   (SListI2, SOP (..))
+import Data.SOP   (SListI2, SOP (..))
 import Staged.Commons (C)
 
-import qualified Generics.SOP as SOP
 import qualified GHC.Generics as GHC
 
 import Data.SOP.Fn.Append
@@ -21,15 +20,11 @@ data Comp xss yss
     | CompR (SOP C xss) (SOP C yss)
   deriving (GHC.Generic)
 
-instance SOP.Generic (Comp xss yss)
-
 -- | For @append@ combinator
 data App a xss yss
     = AppL (C a) (SOP C xss)
     | AppR       (SOP C yss)
   deriving (GHC.Generic)
-
-instance SOP.Generic (App a xss yss)
 
 -- | For @zip@ combinator
 data Zip a xss yss
@@ -37,22 +32,16 @@ data Zip a xss yss
     | ZipR (C a) (SOP C xss) (SOP C yss)
   deriving (GHC.Generic)
 
-instance SOP.Generic (Zip a xss yss)
-
 -- | For @bfsTree@ combinator
 data BFS a xss
     = BfsNext         (SOP C xss)
     | BfsStep (C [a]) (SOP C xss)
   deriving (GHC.Generic)
 
-instance SOP.Generic (BFS a xss)
-
 data Drop xss
     = DropL (C Int) (SOP C xss)
     | DropR         (SOP C xss)
   deriving (GHC.Generic)
-
-instance SOP.Generic (Drop xss)
 
 -------------------------------------------------------------------------------
 -- Composition

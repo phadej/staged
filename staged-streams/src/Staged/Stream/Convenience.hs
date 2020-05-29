@@ -12,19 +12,13 @@
 module Staged.Stream.Convenience (
     -- * Convenience helpers:
     mkStreamM,
-    -- * Type families
-    FlattenCode, FlattenCode0, FlattenCode1, FlattenCode2,
-    FlattenCodeErr, FlattenCodeErr0, FlattenCodeErr1, FlattenCodeErr2,
+    -- * Constraint
+    FlattenCode,
     ) where
 
-import Generics.SOP (Generic, Proxy (..), SOP (..), from, to, unSOP)
-
-import Data.SOP.Fn.All
-import Data.SOP.Fn.Flatten
+import Data.SOP
 import Staged.Commons
-import Staged.Stream.Pure.Convenience
-       (FlattenCode, FlattenCode0 (..), FlattenCode1, FlattenCode2,
-       FlattenCodeErr, FlattenCodeErr0, FlattenCodeErr1, FlattenCodeErr2)
+import Staged.Stream.Internal
 import Staged.Stream.Type
 
 -- | Create 'StreamM' from a simple state.
@@ -49,21 +43,15 @@ import Staged.Stream.Type
 -- possible, as it doesn't make state space bigger.
 --
 mkStreamM
-    :: forall a b s m xssss. (Generic s, FlattenCodeErr s, FlattenCode s xssss)
+    :: forall a b s m xss. FlattenCode s xss
     => (C a -> s)                                                     -- ^ start state
     -> (forall r. s -> (Step (C b) s -> C (m r)) -> C (m r))  -- ^ step function
     -> StreamM m a b
 mkStreamM start0 step0 =
-    allFLATTEN prTop (Proxy :: Proxy xssss) $ MkStreamM start step
+    allFlattenCode (Proxy :: Proxy s) $ MkStreamM start step
   where
-    start :: C a -> SOP C (FLATTEN xssss)
+    start :: C a -> SOP C xss
     start = from' . start0
 
-    step :: SOP C (FLATTEN xssss) -> (Step (C b) (SOP C (FLATTEN xssss)) -> C (m r)) -> C (m r)
+    step :: SOP C xss -> (Step (C b) (SOP C xss) -> C (m r)) -> C (m r)
     step s k = step0 (to' s) (k . fmap from')
-
-    from' :: s -> SOP C (FLATTEN xssss)
-    from' = SOP . flatten_NSNP . codeFlatFwd . unSOP . from
-
-    to' :: SOP C (FLATTEN xssss) -> s
-    to' = to . SOP . codeFlatBwd . unflatten_NSNP . unSOP
