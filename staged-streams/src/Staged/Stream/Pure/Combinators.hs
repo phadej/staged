@@ -196,7 +196,14 @@ empty = mkStream (\_ -> ()) $ \() k -> k Stop
 -- Zipping
 -------------------------------------------------------------------------------
 
-zipWith :: forall i a b c. (C a -> C b -> C c) -> Stream i a -> Stream i b -> Stream i c
+-- |
+--
+-- @
+-- 'zipWith' :: ('C' a -> 'C' b -> 'C' c) -> 'Stream' i a -> 'Stream' i b -> 'Stream' i c
+-- @
+zipWith
+    :: forall i abc a b c. ToCodeFn2 a b c abc
+    => abc -> Stream i a -> Stream i b -> Stream i c
 zipWith h (MkStream start0 steps0) (MkStream start1 steps1) =
     mkStream (\i -> ZipL (start0 i) (start1 i)) (steps steps0 steps1)
   where
@@ -213,8 +220,8 @@ zipWith h (MkStream start0 steps0) (MkStream start1 steps1) =
 
     steps _ g (ZipR a xss yss) k = g yss $ \case
         Stop        -> k Stop
-        Skip   yss' -> k (Skip         (ZipR a xss yss'))
-        Emit b yss' -> k (Emit (h a b) (ZipL xss yss'))
+        Skip   yss' -> k (Skip               (ZipR a xss yss'))
+        Emit b yss' -> k (Emit (toFn2 h a b) (ZipL xss yss'))
 
 -- |
 --
@@ -264,10 +271,10 @@ idPipe :: Stream a a
 idPipe = C.id
 
 -- | Similar to 'map', prefer using 'map'.
-mapPipe :: forall a b. (C a -> C b) -> Stream a b
+mapPipe :: forall a b ab. ToCodeFn a b ab => ab -> Stream a b
 mapPipe f = mkStream start step where
     start :: C a -> Maybe (C b)
-    start a = Just (f a)
+    start a = Just (toFn f a)
 
     step :: Maybe (C b) -> (Step (C b) (Maybe (C b)) -> C r) -> C r
     step Nothing  k = k Stop
@@ -284,12 +291,12 @@ MkStream (\a -> SOP (Z (C (f a) :* Nil))) step where
 -}
 
 -- | Similar to 'filter', prefer using 'filter'.
-filterPipe :: forall a. (C a -> C Bool) -> Stream a a
+filterPipe :: forall a predicate. ToCodeFn a Bool predicate => predicate -> Stream a a
 filterPipe p = mkStream Just step where
     step :: Maybe (C a) -> (Step (C a) (Maybe (C a)) -> C r) -> C r
     step Nothing  k = k Stop
     step (Just a) k = sIfThenElse
-        (p a)
+        (toFn p a)
         (k (Emit a Nothing))
         (k Stop) -- stop immediately, don't go to the second state.
 
@@ -311,8 +318,8 @@ filterPipe p =  MkStream (\a -> SOP (Z (C a :* Nil))) step where
 -- Elimination
 -------------------------------------------------------------------------------
 
-foldl :: forall init start r a b. (IsCode r init, IsCode a start)
-      => (C r -> C b -> C r) -> init -> start -> Stream a b -> GHCCode r
+foldl :: forall r a b fn init start. (IsCode r init, IsCode a start, ToCodeFn2 r b r fn)
+    => fn -> init -> start -> Stream a b -> GHCCode r
 foldl op e z (MkStream xs steps0) =
     fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
   where
@@ -323,7 +330,7 @@ foldl op e z (MkStream xs steps0) =
     body steps loop curr acc = steps curr $ \case
         Stop        -> acc
         Skip   next -> loop next acc
-        Emit b next -> loop next (op acc b)
+        Emit b next -> loop next (toFn2 op acc b)
 
 toList
     :: forall start a b. (IsCode a start)

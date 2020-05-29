@@ -27,7 +27,7 @@ module Staged.Commons (
     (@@),
     -- * Function conversions
     ToCodeFn (..), fromFn,
-    toFn2, fromFn2,
+    ToCodeFn2 (..), fromFn2,
     -- * Functions
     sid,
     sconst,
@@ -265,8 +265,18 @@ instance (fn ~ (a -> b), m ~ Q) => ToCodeFn a b (Code m fn) where
 instance (a' ~ Code Q a, b' ~ Code Q b) => ToCodeFn a b (a' -> b') where
     toFn = id
 
-toFn2 :: IsCode (a -> b -> c) cabc => cabc -> C a -> C b -> C c
-toFn2 f x y = toCode f @@ x @@ y
+-- | A Class for 'fn' which are morally @Code m a -> Code m b -> Code m c@ functions.
+class ToCodeFn2 a b c fn | fn -> a b c where
+    toFn2 :: fn -> C a -> C b -> C c
+
+instance (fn ~ TExp (a -> b -> c)) => ToCodeFn2 a b c (Q fn) where
+    toFn2 f x y = f @@ x @@ y
+
+instance (fn ~ (a -> b -> c), m ~ Q) => ToCodeFn2 a b c (Code m fn) where
+    toFn2 f x y = f @@ x @@ y
+
+instance (a' ~ Code Q a, bc' ~ (Code Q b -> Code Q c)) => ToCodeFn2 a b c (a' -> bc') where
+    toFn2 = id
 
 fromFn :: (C a -> C b) -> C (a -> b)
 fromFn f = C [|| \_x -> $$(unC $ f (C [|| _x ||])) ||]

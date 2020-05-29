@@ -114,6 +114,7 @@ test-suite inspection
     , inspection-testing  ^>=0.4.2.2
     , tasty               ^>=1.2.3
     , tasty-hunit         ^>=0.10.0.2
+    , tasty-quickcheck    ^>=0.10.1
 
 test-suite qc
   default-language: Haskell2010

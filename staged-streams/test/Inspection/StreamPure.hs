@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS -fplugin=Test.Inspection.Plugin #-}
@@ -15,6 +16,7 @@ import qualified Staged.Stream.Pure.Examples as S
 
 import Test.Inspection
 import Test.Tasty.Inspection
+import Test.Tasty.QuickCheck (testProperty)
 
 import Coutts
 
@@ -33,7 +35,13 @@ tests =  testGroup "Staged.Stream.Pure"
     , $(inspectCase "S.toZero^3" $ 'ex3lhs === 'ex3rhs)
     , $(inspectCase "S.toZero^3 reassoc" $ 'ex3lhsB === 'ex3rhs)
     -- zipping
-    , $(inspectCase "zipWith ..." $ 'ex4lhs === 'ex4rhs)
+#if __GLASGOW_HASKELL__ < 810
+    -- GHC-8.10 is not able to optimise ex4rhsA to the same Core :(
+    , $(inspectCase "zipWith A ..." $ 'ex4lhs === 'ex4rhsA)
+#endif
+    , $(inspectCase "zipWith B ..." $ 'ex4lhs === 'ex4rhsB)
+    , testProperty "zipWith A ..." $ \x -> ex4lhs x == ex4rhsA x
+    , testProperty "zipWith B ..." $ \x -> ex4lhs x == ex4rhsB x
     -- Coutts 2007
     , testCase "ex5 10" $ do
         ex5       10 @?= 1705
@@ -54,10 +62,10 @@ ex1rhs :: a -> [a]
 ex1rhs !x = [x]
 
 ex1lhs :: a -> [a]
-ex1lhs x = $$(S.toList (C [|| x ||]) S.idPipe)
+ex1lhs x = $$(S.toList [|| x ||] S.idPipe)
 
 ex1lhsB :: a -> [a]
-ex1lhsB x = $$(S.toList (C [|| x ||]) (S.idPipe >>> S.idPipe))
+ex1lhsB x = $$(S.toList [|| x ||] (S.idPipe >>> S.idPipe))
 
 -- example
 ex2rhs :: Int -> Int
@@ -73,41 +81,41 @@ ex2rhs hi = go 0 0 where
 -- 1 state
 ex2lhs :: Int -> Int
 ex2lhs n = $$(
-      S.foldl (toFn2 [|| (+) ||]) [|| 0 ||] sunit
-    $ S.map (toFn [|| negate ||])
-    $ S.filter (toFn [|| odd ||])
+      S.foldl [|| (+) ||] [|| 0 ||] sunit
+    $ S.map [|| negate ||]
+    $ S.filter [|| odd ||]
     $ S.enumFromTo [|| 0 ||] [|| n ||])
 
 -- 2 states
 ex2lhsB :: Int -> Int
 ex2lhsB n = $$(
-    S.foldl (toFn2 [|| (+) ||]) [|| 0 ||] sunit $
-    (S.filter (toFn [|| odd ||]) $ S.enumFromTo [|| 0 ||] [|| n ||]) >>>
-    S.mapPipe (toFn [|| negate ||]))
+    S.foldl [|| (+) ||] [|| 0 ||] sunit $
+    (S.filter [|| odd ||] $ S.enumFromTo [|| 0 ||] [|| n ||]) >>>
+    S.mapPipe [|| negate ||])
 
 -- 6 states
 ex2lhsC :: Int -> Int
 ex2lhsC n = $$(
-    S.foldl (toFn2 [|| (+) ||]) [|| 0 ||] sunit $
+    S.foldl [|| (+) ||] [|| 0 ||] sunit $
     S.enumFromTo [|| 0 ||] [|| n ||] >>>
-    S.filterPipe (toFn [|| odd ||]) >>>
-    S.mapPipe (toFn [|| negate ||]))
+    S.filterPipe [|| odd ||] >>>
+    S.mapPipe [|| negate ||])
 
 -- 8 states
 ex2lhsD :: Int -> Int
 ex2lhsD n = $$(
-    S.foldl (toFn2 [|| (+) ||]) [|| 0 ||] sunit $
+    S.foldl [|| (+) ||] [|| 0 ||] sunit $
     (S.enumFromTo [|| 0 ||] [|| n ||] >>>
-    S.filterPipe (toFn [|| odd ||])) >>>
-    S.mapPipe (toFn [|| negate ||]))
+    S.filterPipe [|| odd ||]) >>>
+    S.mapPipe [|| negate ||])
 
 -- Composition is quite powerful
 ex3lhs :: Int -> [Int]
-ex3lhs n = $$(S.toList (C [|| n ||]) $
+ex3lhs n = $$(S.toList [|| n ||] $
     S.toZero >>> S.toZero >>> S.toZero) -- 3 states
 
 ex3lhsB :: Int -> [Int]
-ex3lhsB n = $$(S.toList (C [|| n ||]) $
+ex3lhsB n = $$(S.toList [|| n ||] $
     (S.toZero >>> S.toZero) >>> S.toZero) -- 4 states, where 2 same
 
 ex3rhs :: Int -> [Int]
@@ -132,13 +140,14 @@ ex3rhs n0 = state0 n0 where
 -------------------------------------------------------------------------------
 
 ex4lhs :: Int -> Int
-ex4lhs n = $$(S.foldl (toFn2  [|| (+) ||]) [|| 0 ||] sunit $
-    S.zipWith (toFn2 [|| (*) ||])
-    (S.enumFromTo [|| n ||] (liftTyped 5))
-    (S.enumFromTo (liftTyped 4) (liftTyped 10)))
+ex4lhs n = $$(
+    S.foldl [|| (+) ||] [|| 0 ||] sunit $ S.zipWith
+        [|| (*) ||]
+        (S.enumFromTo [|| n ||] (sint 5))
+        (S.enumFromTo (sint 4) (sint 10)))
 
-ex4rhs :: Int -> Int
-ex4rhs n0 = state0 0 n0 4 where
+ex4rhsA :: Int -> Int
+ex4rhsA n0 = state0 0 n0 4 where
     state0 !acc !x !y =
         if (x > 5)
         then acc
@@ -147,6 +156,13 @@ ex4rhs n0 = state0 0 n0 4 where
         if (y > 10)
         then acc
         else state0 (acc + (n * y)) x (1 + y)
+
+ex4rhsB :: Int -> Int
+ex4rhsB n0 = state0 0 n0 4 where
+    state0 !acc !x !y =
+        if (x > 5) || (y > 10)
+        then acc
+        else state0 (acc + (x * y)) (1 + x) (1 + y)
 
 -------------------------------------------------------------------------------
 -- Coutts 2007 intro example
@@ -157,9 +173,9 @@ ex5 n = sum [ k * m | k <- [1..n], m <- [1..k] ]
 
 ex5lhs :: Int -> Int
 ex5lhs n = $$(
-     S.foldl splus (liftTyped 0) (C [|| n ||]) $
-    (S.enumFromTo' (liftTyped 1)) >>>
-    (S.mapWithInput smult (S.enumFromTo' (liftTyped 1))))
+     S.foldl splus (sint 0) [|| n ||] $
+    (S.enumFromTo' (sint 1)) >>>
+    (S.mapWithInput smult (S.enumFromTo' (sint 1))))
 
 ex5rhs :: Int -> Int
 ex5rhs = state0 0 1 where
