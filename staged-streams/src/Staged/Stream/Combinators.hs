@@ -70,6 +70,7 @@ import Staged.Stream.States
 import Staged.Stream.Pure.Type
 import Staged.Stream.Type
 import Staged.Stream.Convenience
+import Staged.Stream.Internal
 
 import qualified Staged.Stream.Pure as Pure
 

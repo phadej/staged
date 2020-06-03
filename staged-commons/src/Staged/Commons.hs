@@ -1,10 +1,11 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Staged.Commons (
     -- * Types
@@ -19,6 +20,8 @@ module Staged.Commons (
     joinCode,
     bindCode,
     bindCode_,
+    -- * Transformers
+    transCode,
     -- * GHC Code
     GHCCode,
     IsCode (..),
@@ -31,14 +34,11 @@ module Staged.Commons (
     -- * Functions
     sid,
     sconst,
-    -- * let (TODO)
-
+    -- * let
+    slet,
     -- * letrec
-    Fixedpoint,
-    sletrec_SOP,
-    sletrec1_SOP,
-    sletrec_NSNP,
-    sletrec1_NSNP,
+    sletrec,
+    sletrecH,
     -- * Monad
     sreturn,
     sfmap,
@@ -73,50 +73,18 @@ module Staged.Commons (
     sliftIO,
     -- * Int
     sint,
-
-{-
-
-    -- * Mapping helpers
-    -- ** Unary
-    mapIC,
-    mapKC,
-    mapCI,
-    mapCK,
-    mapCC,
-    -- ** Binary
-    mapIIC,
-    mapIKC,
-    mapICI,
-    mapICK,
-    mapICC,
-    mapKIC,
-    mapKKC,
-    mapKCI,
-    mapKCK,
-    mapKCC,
-    mapCII,
-    mapCIK,
-    mapCIC,
-    mapCKI,
-    mapCKK,
-    mapCKC,
-    mapCCI,
-    mapCCK,
-    mapCCC,
-
--}
     ) where
 
-import Language.Haskell.TH (Name, DecQ, PatQ, ExpQ, Q, newName, varP, bangP, varE, funD, clause, normalB, letE, appE)
-import Language.Haskell.TH.Lib (TExpQ)
-import Language.Haskell.TH.Syntax (unTypeQ, unsafeTExpCoerce, TExp)
-import Data.List (foldl')
+import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
+import Language.Haskell.TH (Name, Q, newName, runIO, valD, varP, varE, normalB, letE)
+import Language.Haskell.TH.Syntax (unsafeTExpCoerce, TExp)
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.SOP
-import Data.SOP.NP
-import Data.SOP.NS
+import System.IO.Unsafe (unsafeInterleaveIO)
+import Data.Type.Equality ((:~:) (..))
 
+import qualified Control.Monad.Trans.Class as Trans
 import qualified Control.Monad.Trans.State as S
+import qualified Data.Map.Lazy as Map
 
 import Staged.Compat
 
@@ -138,90 +106,6 @@ sapply f x = C [|| $$(unC $ toCode f) $$(unC x) ||]
 (@@) = sapply
 
 infixl 0 @@
-
--------------------------------------------------------------------------------
--- generics-sop inspired functions
--------------------------------------------------------------------------------
-
-{-
-
--- arity: 2
-
-mapIC :: (x -> C x) -> I x -> C x
-mapIC f (I a) = C (f a)
-
-mapKC :: (a -> C x) -> K a x -> C x
-mapKC f (K a) = C (f a)
-
-mapCI :: (C x -> x) -> C x -> I x
-mapCI f (C a) = I (f a)
-
-mapCK :: (C x -> a) -> C x -> K a x
-mapCK f (C a) = K (f a)
-
-mapCC :: (C x -> C x) -> C x -> C x
-mapCC f (C a) = C (f a)
-
--- arity: 3
-
-mapIIC :: ( x ->  x -> C x) -> I x -> I x -> C x
-mapIIC f (I a) (I b) = C (f a b)
-
-mapIKC :: (x -> a -> C x) -> I x -> K a x -> C x
-mapIKC f (I a) (K b) = C (f a b)
-
-mapICI :: (x -> C x -> x) -> I x -> C x -> I x
-mapICI f (I a) (C b) = I (f a b)
-
-mapICK :: (x -> C x -> a) -> I x -> C x -> K a x
-mapICK f (I a) (C b) = K (f a b)
-
-mapICC :: (x -> C x -> C x) -> I x -> C x -> C x
-mapICC f (I a) (C b) = C (f a b)
-
-mapKIC :: (a -> x -> C x) -> K a x -> I x -> C x
-mapKIC f (K a) (I b) = C (f a b)
-
-mapKKC :: (a -> b -> C x) -> K a x -> K b x -> C x
-mapKKC f (K a) (K b) = C (f a b)
-
-mapKCI :: (a -> C x -> x) -> K a x -> C x -> I x
-mapKCI f (K a) (C b) = I (f a b)
-
-mapKCK :: (a -> C x -> b) -> K a x -> C x -> K b x
-mapKCK f (K a) (C b) = K (f a b)
-
-mapKCC :: (a -> C x -> C x) -> K a x -> C x -> C x
-mapKCC f (K a) (C b) = C (f a b)
-
-mapCII :: (C x -> x -> x) -> C x -> I x -> I x
-mapCII f (C a) (I b) = I (f a b)
-
-mapCIK :: (C x ->  x -> a) -> C x -> I x -> K a x
-mapCIK f (C a) (I b) = K (f a b)
-
-mapCIC :: (C x -> x -> C x) -> C x -> I x -> C x
-mapCIC f (C a) (I b) = C (f a b)
-
-mapCKI :: (C x -> a -> x) -> C x -> K a x -> I x
-mapCKI f (C a) (K b) = I (f a b)
-
-mapCKK :: (C x -> a -> b) -> C x -> K a x -> K b x
-mapCKK f (C a) (K b) = K (f a b)
-
-mapCKC :: (C x -> a -> C x) -> C x -> K a x -> C x
-mapCKC f (C a) (K b) = C (f a b)
-
-mapCCI :: (C x -> C x ->  x) -> C x -> C x -> I x
-mapCCI f (C a) (C b) = I (f a b)
-
-mapCCK :: (C x -> C x -> a) -> C x -> C x -> K a x
-mapCCK f (C a) (C b) = K (f a b)
-
-mapCCC :: (C x -> C x -> C x) -> C x -> C x -> C x
-mapCCC f (C a) (C b) = C (f a b)
-
--}
 
 -------------------------------------------------------------------------------
 -- Unit
@@ -294,93 +178,164 @@ sconst :: IsCode a ca => ca -> C b -> C a
 sconst = const . toCode
 
 -------------------------------------------------------------------------------
+-- Let
+-------------------------------------------------------------------------------
+
+slet :: C a -> (C a -> C r) -> C r
+slet expr k = C [||
+        let _x = $$(unC expr)
+        in $$(unC $ k $ C [|| _x ||])
+    ||]
+
+-------------------------------------------------------------------------------
 -- LetRec
 -------------------------------------------------------------------------------
 
--- | Type of 'fix'. Fixedpoint of @a@.
-type Fixedpoint a = (a -> a) -> a
-
-sletrec_SOP
-    :: forall xss b. SListI2 xss => Fixedpoint (SOP C xss -> C b)
-sletrec_SOP f x = sletrec_NSNP (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
-
-sletrec_NSNP
-    :: forall xss b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
-sletrec_NSNP body args0 = liftCode $ do
-    states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
-    anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
+-- | Generating mutually-recursive definitions.
+--
+-- @
+-- fibnr :: Int -> C Int
+-- fibnr = 'sletrec' $ \\rec n ->
+--     if n == 0 then return ('sint' 1) else
+--     if n == 1 then return ('sint' 1) else do
+--         n1 <- rec (n - 1)
+--         n2 <- rec (n - 2)
+--         return $ 'toCode' [|| $$('fromCode' n1) + $$('fromCode' n2) ||]
+-- @
+--
+sletrec
+    :: forall a b. Ord a
+    => (forall t. (Trans.MonadTrans t, Monad (t Q)) => (a -> t Q (Code Q b)) -> (a -> t Q (Code Q b)))
+    -> a -> Code Q b
+sletrec f x = liftCode $ do
+    (expr, bindings) <- S.runStateT (loop x) Map.empty
     unsafeTExpCoerce $ letE
-        (collapse_NP (cliftA3_NP (Proxy :: Proxy SListI)  (mkFun states) injections' states anames :: NP (K DecQ) xss))
-        (unTypeQ $ call states args0)
+        [ valD (varP name) (normalB (unTypeCode code)) []
+        | (_, (name, code)) <- Map.toList bindings
+        ]
+        (unTypeCode expr)
   where
-    body' :: (NS (NP C) xss -> TExpQ b)
-          ->  NS (NP C) xss -> TExpQ b
-    body' rec = unC . body (liftCode . rec)
+    loop :: a -> M a b (Code Q b)
+    loop y = do
+        memo <- S.get
+        case Map.lookup y memo of
+            Nothing -> do
+                name <- Trans.lift $ newName $ "_l" ++ show (Map.size memo)
+                _ <- mfix_ $ \yCode -> do
+                    S.modify (Map.insert y (name, yCode))
+                    f loop y
+                return $ C $ unsafeTExpCoerce $ varE name
 
-    mkFun :: SListI xs => NP (K Name) xss -> Injection (NP C) xss xs -> K Name xs -> NP (K Name) xs -> K DecQ xs
-    mkFun states (Fn inj) (K state) as =
-        K $ funD state [ clause (varsP as) (normalB $ unTypeQ $ body' (call states) (unK $ inj $ varsE as)) []]
+            Just (name, _) ->
+                return $ C $ unsafeTExpCoerce $ varE name
 
-    injections' :: NP (Injection (NP C) xss) xss
-    injections' = injections
+type M a b = S.StateT (Map.Map a (Name, Code Q b)) Q
 
-    call :: SListI2 xss => NP (K Name) xss -> NS (NP C) xss -> TExpQ c
-    call states args = collapse_NS $ cliftA2_NS (Proxy :: Proxy SListI)
-        (\(K state) args' -> K $ unsafeTExpCoerce $ appsE (varE state) (mkArgs args'))
-        states args
+-------------------------------------------------------------------------------
+-- Heteregeneous LetRec
+-------------------------------------------------------------------------------
 
--- | 'sletrec_SOP' with additional argument in each state.
-sletrec1_SOP
-    :: forall xss b c. SListI2 xss => Fixedpoint (SOP C xss -> C b -> C c)
-sletrec1_SOP f x = sletrec1_NSNP (\u v w -> f (u . unSOP) (SOP v) w) (unSOP x)
-
--- | 'sletrec_NSNP' with additional argument in each state.
-sletrec1_NSNP
-    :: forall xss b c. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b -> C c)
-sletrec1_NSNP body args0 b0 = liftCode $ do
-    states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
-    anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
-    bname  <- newName "_b"
+-- | Generating heterogenous mutually-recursive definitions.
+--
+-- The setup is somewhat involved. Suppose we have two mutually-recursive
+-- data types:
+--
+-- @
+-- data Even = Zero | E1 Odd deriving Show
+-- data Odd  = O1 Even       deriving Show
+-- @
+--
+-- and we want to generate function of type @Int -> Maybe Even@.
+-- We will generate two mutually recursive functions, @isEven@ and @isOdd@.
+-- First we need tags telling the type of symbols we want to generate.
+--
+-- @
+-- data Tag a where
+--     TagE :: Tag (Int -> Maybe Even)
+--     TagO :: Tag (Int -> Maybe Odd)
+-- @
+--
+-- The tag could have more fields. It all boils down to implementing
+-- an equality predicate. In this case it is quite straight-forward:
+--
+-- @
+-- eqTag :: Tag a -> Tag b -> Maybe (a :~: b)
+-- eqTag TagE TagE = Just Refl
+-- eqTag TagE TagO = Nothing
+-- eqTag TagO TagE = Nothing
+-- eqTag TagO TagO = Just Refl
+-- @
+--
+-- Then we can write generating code. I apologize for this contrived example.
+--
+-- @
+-- isEvenCodeH :: Tag sig -> C sig
+-- isEvenCodeH = 'sletrecH' eqTag $ \rec tag -> case tag of
+--     TagE -> do
+--         isOdd <- rec TagO
+--         return $ 'toCode' [|| \\n -> case n of
+--                                 0 -> Just Zero
+--                                 _ -> E1 \<$> $$('fromCode' isOdd) (n - 1)
+--                          ||]
+--
+--     TagO -> do
+--         isEven <- rec TagE
+--         return $ 'toCode' [|| \n -> case n of
+--                                 0 -> Nothing
+--                                 _ -> O1 \<$> $$('fromCode' isEven) (n - 1)
+--                          ||]
+-- @
+--
+-- The generated code is what we would expect:
+--
+-- @
+--     unC isEvenCodeH
+--   ======>
+--     let
+--       _l1_aaxb
+--         = \ n_aaxc
+--             -> case n_aaxc of
+--                  0 -> Nothing
+--                  _ -> (O1 \<$> _l0_aaxa (n_aaxc - 1))
+--       _l0_aaxa
+--         = \ n_aaxd
+--             -> case n_aaxd of
+--                  0 -> Just Zero
+--                  _ -> (E1 \<$> _l1_aaxb (n_aaxd - 1))
+--     in _l0_aaxa
+-- @
+--
+-- See also @some@ library for starting point for heterogenous utilities,
+-- e.g. @GEq@ type-class for equality.
+--
+sletrecH
+    :: forall f a. (forall x y. f x -> f y -> Maybe (x :~: y)) -- ^ equality on equation tags
+    -> (forall t b. (Trans.MonadTrans t, Monad (t Q)) => (forall c. f c -> t Q (Code Q c)) -> (f b -> t Q (Code Q b))) -- ^ open recursion callback
+    -> f a   -- ^ equation tag
+    -> Code Q a  -- ^ resulting code
+sletrecH eq f x = liftCode $ do
+    (expr, bindings) <- S.runStateT (loop x) dmapEmpty
     unsafeTExpCoerce $ letE
-        (collapse_NP (cliftA3_NP (Proxy :: Proxy SListI)  (mkFun states bname) injections' states anames :: NP (K DecQ) xss))
-        (unTypeQ $ call states args0 (unC b0))
+        [ valD (varP name) (normalB (unTypeCode code)) []
+        | _ :*: NE name code <- dmapToList bindings
+        ]
+        (unTypeCode expr)
   where
-    body' :: (NS (NP C) xss -> TExpQ b -> TExpQ c)
-          ->  NS (NP C) xss -> TExpQ b -> TExpQ c
-    body' rec x y = unC $
-        body (\x' y' -> liftCode (rec x' (unC y'))) x (liftCode y)
+    loop :: forall x. f x -> S.StateT (DMap f NameExp) Q (Code Q x)
+    loop y = do
+        memo <- S.get
+        case dmapLookup eq y memo of
+            Nothing -> do
+                name <- Trans.lift $ newName $ "_l" ++ show (dmapSize memo)
+                _ <- mfix_ $ \yCode -> do
+                    S.modify (dmapInsert y (NE name yCode))
+                    f loop y
+                return $ C $ unsafeTExpCoerce $ varE name
 
-    mkFun :: SListI xs => NP (K Name) xss -> Name -> Injection (NP C) xss xs -> K Name xs -> NP (K Name) xs -> K DecQ xs
-    mkFun states b (Fn inj) (K state) as =
-        K $ funD state [ clause (bangP (varP b) : varsP as) (normalB $ unTypeQ $ body' (call states) (unK $ inj $ varsE as) b') []]
-      where
-        b' :: TExpQ b
-        b' = unsafeTExpCoerce (varE b)
+            Just (NE name _) -> do
+                return $ C $ unsafeTExpCoerce $ varE name
 
-    injections' :: NP (Injection (NP C) xss) xss
-    injections' = injections
-
-    call :: SListI2 xss => NP (K Name) xss -> NS (NP C) xss -> TExpQ b -> TExpQ c
-    call states args b = collapse_NS $ cliftA2_NS (Proxy :: Proxy SListI)
-        (\(K state) args' -> K $ unsafeTExpCoerce $ appsE (varE state) (unTypeQ b : mkArgs args'))
-        states args
-
-appsE :: ExpQ -> [ExpQ] -> ExpQ
-appsE = foldl' appE
-
-varsP :: SListI xs => NP (K Name) xs -> [PatQ]
-varsP names = collapse_NP $ map_NP (mapKK (bangP . varP)) names
-
-varsE :: SListI xs => NP (K Name) xs -> NP C xs
-varsE names = map_NP (\(K n) -> C (unsafeTExpCoerce (varE n))) names
-
-mkArgs ::SListI xs => NP C xs -> [ExpQ]
-mkArgs args = collapse_NP $ map_NP (\(C x) -> K (unTypeQ x)) args
-
-newNameIndex :: String -> S.StateT Int Q Name
-newNameIndex pfx = S.StateT $ \i -> do
-    n <- newName (pfx ++ show i)
-    return (n, i + 1)
+data NameExp b = NE !Name (Code Q b)
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -492,3 +447,51 @@ sliftIO = toFn [|| liftIO ||]
 -- | @'liftTyped' \@Int@, with type annotation.
 sint :: Int -> C Int
 sint n = C [|| $$(unC $ liftTyped n) :: Int ||]
+
+-------------------------------------------------------------------------------
+-- Our version of MonadFix, to avoid orphan instance
+-------------------------------------------------------------------------------
+
+class MonadFix_ m where
+    mfix_ :: (a -> m a) -> m a
+
+instance MonadFix_ m => MonadFix_ (S.StateT s m) where
+    mfix_ f = S.StateT $ \ s -> mfix_ $ \ ~(a, _) -> S.runStateT (f a) s
+    {-# INLINE mfix_ #-}
+
+instance MonadFix_ Q where
+    mfix_ k = do
+        m <- runIO newEmptyMVar
+        ans <- runIO (unsafeInterleaveIO (takeMVar m))
+        result <- k ans
+        runIO (putMVar m result)
+        pure result
+    {-# INLINE mfix_ #-}
+
+-------------------------------------------------------------------------------
+-- DSum and DMap, kind of
+-------------------------------------------------------------------------------
+
+data DSum f g where
+    (:*:) :: !(f a) -> g a -> DSum f g
+
+newtype DMap f g = DMap { dmapToList :: [DSum f g] }
+
+dmapEmpty :: DMap f g
+dmapEmpty = DMap []
+
+dmapLookup
+    :: (forall x y. f x -> f y -> Maybe (x :~: y))
+    -> f a
+    -> DMap f g
+    -> Maybe (g a)
+dmapLookup _eq _k (DMap [])               = Nothing
+dmapLookup  eq  k (DMap ((x :*: y) : zs)) = case eq k x of
+    Just Refl -> Just y
+    Nothing   -> dmapLookup eq k (DMap zs)
+
+dmapSize :: DMap f g -> Int
+dmapSize (DMap xs) = length xs
+
+dmapInsert :: f a -> g a -> DMap f g -> DMap f g
+dmapInsert k v (DMap xs) = DMap ((k :*: v) : xs)
