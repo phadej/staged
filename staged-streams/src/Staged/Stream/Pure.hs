@@ -86,6 +86,9 @@ module Staged.Stream.Pure (
     -- Being consistent in this way means that we don't get ambiguous types errors.
     --
     module Staged.Stream.Pure.Combinators,
+    -- * Utilities
+    sletrec_SOP,
+    sletrec1_SOP,
 ) where
 
 import Prelude ()
@@ -93,6 +96,7 @@ import Prelude ()
 import Staged.Stream.Pure.Type
 import Staged.Stream.Pure.Convenience
 import Staged.Stream.Pure.Combinators
+import Staged.Stream.Internal
 
 -- $setup
 -- >>> import Staged.Commons

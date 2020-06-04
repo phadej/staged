@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds         #-}
 {-# LANGUAGE DataKinds               #-}
 {-# LANGUAGE EmptyCase               #-}
+{-# LANGUAGE ExplicitNamespaces      #-}
 {-# LANGUAGE FlexibleContexts        #-}
 {-# LANGUAGE FlexibleInstances       #-}
 {-# LANGUAGE FunctionalDependencies  #-}
@@ -15,13 +16,27 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 module Staged.Stream.Internal where
 
-import Data.Kind           (Constraint, Type)
-import Data.Proxy          (Proxy (..))
-import Data.SOP            (I (..), NP (..), NS (..), SListI, SListI2, SOP (..), unSOP, unI, unZ)
-import GHC.TypeLits        (ErrorMessage (..), TypeError)
-import Language.Haskell.TH (Q, TExp)
+import Data.Kind                  (Constraint, Type)
+import Data.List                  (foldl')
+import Data.Proxy                 (Proxy (..))
+import GHC.TypeLits               (ErrorMessage (..), TypeError)
+import Language.Haskell.TH
+       (DecQ, Name, PatQ, Q, TExp,appE, bangP, clause, funD,
+       letE, newName, normalB, varE, varP)
+import Language.Haskell.TH.Lib    (ExpQ, TExpQ)
+import Language.Haskell.TH.Syntax (unTypeQ, unsafeTExpCoerce)
 
-import qualified GHC.Generics as GHC
+import qualified Control.Monad.Trans.State as S
+import qualified GHC.Generics              as GHC
+
+import Data.SOP
+       ((:.:) (..), I (..), Injection, K (..), NP (..), NS (..), SListI,
+       SListI2, SOP (..), injections, mapKK, unI, unK, unPOP, unSOP, unZ,
+       type (-.->) (..))
+import Data.SOP.NP
+       (cliftA3_NP, collapse_NP, map_NP, pure_NP, pure_POP, sequence'_NP,
+       sequence'_POP)
+import Data.SOP.NS (cliftA2_NS, collapse_NS)
 
 import Data.SOP.Fn.All
 import Data.SOP.Fn.Flatten
@@ -119,6 +134,95 @@ instance (e ~ TExp x) => FlattenCode2 (Q e) '[ '[ x ] ] where
     codeFlatBwd2 (S ns)            = case ns of {}
 
 -------------------------------------------------------------------------------
+-- Fixedpoints
+-------------------------------------------------------------------------------
+
+-- | Type of 'fix'. Fixedpoint of @a@.
+type Fixedpoint a = (a -> a) -> a
+
+sletrec_SOP
+    :: forall xss b. SListI2 xss => Fixedpoint (SOP C xss -> C b)
+sletrec_SOP f x = sletrec_NSNP (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
+
+sletrec_NSNP
+    :: forall xss b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
+sletrec_NSNP body args0 = liftCode $ do
+    states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
+    anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
+    unsafeTExpCoerce $ letE
+        (collapse_NP (cliftA3_NP (Proxy :: Proxy SListI)  (mkFun states) injections' states anames :: NP (K DecQ) xss))
+        (unTypeQ $ call states args0)
+  where
+    body' :: (NS (NP C) xss -> TExpQ b)
+          ->  NS (NP C) xss -> TExpQ b
+    body' rec = unC . body (liftCode . rec)
+
+    mkFun :: SListI xs => NP (K Name) xss -> Injection (NP C) xss xs -> K Name xs -> NP (K Name) xs -> K DecQ xs
+    mkFun states (Fn inj) (K state) as =
+        K $ funD state [ clause (varsP as) (normalB $ unTypeQ $ body' (call states) (unK $ inj $ varsE as)) []]
+
+    injections' :: NP (Injection (NP C) xss) xss
+    injections' = injections
+
+    call :: SListI2 xss => NP (K Name) xss -> NS (NP C) xss -> TExpQ c
+    call states args = collapse_NS $ cliftA2_NS (Proxy :: Proxy SListI)
+        (\(K state) args' -> K $ unsafeTExpCoerce $ appsE (varE state) (mkArgs args'))
+        states args
+
+-- | 'sletrec_SOP' with additional argument in each state.
+sletrec1_SOP
+    :: forall xss b c. SListI2 xss => Fixedpoint (SOP C xss -> C b -> C c)
+sletrec1_SOP f x = sletrec1_NSNP (\u v w -> f (u . unSOP) (SOP v) w) (unSOP x)
+
+-- | 'sletrec_NSNP' with additional argument in each state.
+sletrec1_NSNP
+    :: forall xss b c. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b -> C c)
+sletrec1_NSNP body args0 b0 = liftCode $ do
+    states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
+    anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
+    bname  <- newName "_b"
+    unsafeTExpCoerce $ letE
+        (collapse_NP (cliftA3_NP (Proxy :: Proxy SListI)  (mkFun states bname) injections' states anames :: NP (K DecQ) xss))
+        (unTypeQ $ call states args0 (unC b0))
+  where
+    body' :: (NS (NP C) xss -> TExpQ b -> TExpQ c)
+          ->  NS (NP C) xss -> TExpQ b -> TExpQ c
+    body' rec x y = unC $
+        body (\x' y' -> liftCode (rec x' (unC y'))) x (liftCode y)
+
+    mkFun :: SListI xs => NP (K Name) xss -> Name -> Injection (NP C) xss xs -> K Name xs -> NP (K Name) xs -> K DecQ xs
+    mkFun states b (Fn inj) (K state) as =
+        K $ funD state [ clause (bangP (varP b) : varsP as) (normalB $ unTypeQ $ body' (call states) (unK $ inj $ varsE as) b') []]
+      where
+        b' :: TExpQ b
+        b' = unsafeTExpCoerce (varE b)
+
+    injections' :: NP (Injection (NP C) xss) xss
+    injections' = injections
+
+    call :: SListI2 xss => NP (K Name) xss -> NS (NP C) xss -> TExpQ b -> TExpQ c
+    call states args b = collapse_NS $ cliftA2_NS (Proxy :: Proxy SListI)
+        (\(K state) args' -> K $ unsafeTExpCoerce $ appsE (varE state) (unTypeQ b : mkArgs args'))
+        states args
+
+appsE :: ExpQ -> [ExpQ] -> ExpQ
+appsE = foldl' appE
+
+varsP :: SListI xs => NP (K Name) xs -> [PatQ]
+varsP names = collapse_NP $ map_NP (mapKK (bangP . varP)) names
+
+varsE :: SListI xs => NP (K Name) xs -> NP C xs
+varsE names = map_NP (\(K n) -> C (unsafeTExpCoerce (varE n))) names
+
+mkArgs ::SListI xs => NP C xs -> [ExpQ]
+mkArgs args = collapse_NP $ map_NP (\(C x) -> K (unTypeQ x)) args
+
+newNameIndex :: String -> S.StateT Int Q Name
+newNameIndex pfx = S.StateT $ \i -> do
+    n <- newName (pfx ++ show i)
+    return (n, i + 1)
+
+-------------------------------------------------------------------------------
 -- GGP
 -------------------------------------------------------------------------------
 
@@ -126,21 +230,21 @@ instance (e ~ TExp x) => FlattenCode2 (Q e) '[ '[ x ] ] where
 
 -- Copyright (c) 2014-2015, Well-Typed LLP, Edsko de Vries, Andres Löh
 -- All rights reserved.
--- 
+--
 -- Redistribution and use in source and binary forms, with or without
 -- modification, are permitted provided that the following conditions are met:
--- 
+--
 -- 1. Redistributions of source code must retain the above copyright notice,
 --    this list of conditions and the following disclaimer.
--- 
+--
 -- 2. Redistributions in binary form must reproduce the above copyright notice,
 --    this list of conditions and the following disclaimer in the documentation
 --    and/or other materials provided with the distribution.
--- 
+--
 -- 3. Neither the name of the copyright holder nor the names of its contributors
 --    may be used to endorse or promote products derived from this software
 --    without specific prior written permission.
--- 
+--
 -- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 -- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 -- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE

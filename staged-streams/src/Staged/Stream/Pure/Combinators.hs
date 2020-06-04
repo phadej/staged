@@ -53,6 +53,7 @@ import Staged.Stream.States
 import Staged.Stream.Step
 import Staged.Stream.Pure.Type
 import Staged.Stream.Pure.Convenience
+import Staged.Stream.Internal
 
 -------------------------------------------------------------------------------
 -- Construction

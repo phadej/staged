@@ -18,6 +18,8 @@ module Staged.Compat (
     joinCode,
     bindCode,
     bindCode_,
+    -- * Transformers
+    transCode,
     -- * GHC Splice
     GHCCode,
     IsCode (..),
@@ -28,6 +30,7 @@ import Language.Haskell.TH        (Exp, Q, TExp)
 import Language.Haskell.TH.Lib    (ExpQ, TExpQ)
 import Language.Haskell.TH.Syntax (unTypeQ, unsafeTExpCoerce)
 
+import qualified Control.Monad.Trans.Class as Trans
 import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A 'Code' newtype as in https://github.com/ghc-proposals/ghc-proposals/pull/195
@@ -70,6 +73,9 @@ bindCode q k = liftCode (q >>= examineCode . k)
 
 bindCode_ :: Monad m => m a -> Code m b -> Code m b
 bindCode_ q c = liftCode (q >> examineCode c)
+
+transCode :: (Trans.MonadTrans t, Monad m) => Code m a -> Code (t m) a
+transCode (C x) = C (Trans.lift x)
 
 -------------------------------------------------------------------------------
 -- Questionable instances
