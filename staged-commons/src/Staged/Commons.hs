@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -35,7 +36,8 @@ module Staged.Commons (
     sid,
     sconst,
     -- * let
-    slet,
+    slet, slet',
+    slam, slam',
     -- * letrec
     sletrec,
     sletrecH,
@@ -186,6 +188,18 @@ slet expr k = C [||
         let _x = $$(unC expr)
         in $$(unC $ k $ C [|| _x ||])
     ||]
+
+slet' :: C a -> (C a -> C r) -> C r
+slet' expr k = C [||
+        let ! _x = $$(unC expr)
+        in $$(unC $ k $ C [|| _x ||])
+    ||]
+
+slam :: (C a -> C b) -> C (a -> b)
+slam = fromFn
+
+slam' :: (C a -> C b) -> C (a -> b)
+slam' f = C [|| \ ! _x -> $$(unC $ f (C [|| _x ||])) ||]
 
 -------------------------------------------------------------------------------
 -- LetRec

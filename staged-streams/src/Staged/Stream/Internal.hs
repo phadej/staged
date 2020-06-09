@@ -1,10 +1,12 @@
 {-# LANGUAGE ConstraintKinds         #-}
 {-# LANGUAGE DataKinds               #-}
+{-# LANGUAGE DeriveGeneric           #-}
 {-# LANGUAGE EmptyCase               #-}
 {-# LANGUAGE ExplicitNamespaces      #-}
 {-# LANGUAGE FlexibleContexts        #-}
 {-# LANGUAGE FlexibleInstances       #-}
 {-# LANGUAGE FunctionalDependencies  #-}
+{-# LANGUAGE GADTs                   #-}
 {-# LANGUAGE KindSignatures          #-}
 {-# LANGUAGE PolyKinds               #-}
 {-# LANGUAGE RankNTypes              #-}
@@ -16,27 +18,20 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 module Staged.Stream.Internal where
 
-import Data.Kind                  (Constraint, Type)
-import Data.List                  (foldl')
-import Data.Proxy                 (Proxy (..))
-import GHC.TypeLits               (ErrorMessage (..), TypeError)
-import Language.Haskell.TH
-       (DecQ, Name, PatQ, Q, TExp,appE, bangP, clause, funD,
-       letE, newName, normalB, varE, varP)
-import Language.Haskell.TH.Lib    (ExpQ, TExpQ)
-import Language.Haskell.TH.Syntax (unTypeQ, unsafeTExpCoerce)
+import Data.Kind           (Constraint, Type)
+import Data.Proxy          (Proxy (..))
+import Data.Type.Equality  ((:~:) (..))
+import GHC.TypeLits        (ErrorMessage (..), TypeError)
+import Language.Haskell.TH (Q, TExp)
 
-import qualified Control.Monad.Trans.State as S
+import qualified Control.Monad.Trans.Class as Trans
 import qualified GHC.Generics              as GHC
 
 import Data.SOP
-       ((:.:) (..), I (..), Injection, K (..), NP (..), NS (..), SListI,
-       SListI2, SOP (..), injections, mapKK, unI, unK, unPOP, unSOP, unZ,
-       type (-.->) (..))
-import Data.SOP.NP
-       (cliftA3_NP, collapse_NP, map_NP, pure_NP, pure_POP, sequence'_NP,
-       sequence'_POP)
-import Data.SOP.NS (cliftA2_NS, collapse_NS)
+       ((:.:) (..), I (..), K (..), NP (..), NS (..), SList (..), SListI,
+       SListI2, SOP (..), sList, unI, unSOP, unZ)
+import Data.SOP.NP (cmap_NP, map_NP, sequence'_NP)
+import Data.SOP.NS (collapse_NS, liftA2_NS)
 
 import Data.SOP.Fn.All
 import Data.SOP.Fn.Flatten
@@ -142,85 +137,20 @@ type Fixedpoint a = (a -> a) -> a
 
 sletrec_SOP
     :: forall xss b. SListI2 xss => Fixedpoint (SOP C xss -> C b)
-sletrec_SOP f x = sletrec_NSNP (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
-
-sletrec_NSNP
-    :: forall xss b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
-sletrec_NSNP body args0 = liftCode $ do
-    states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
-    anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
-    unsafeTExpCoerce $ letE
-        (collapse_NP (cliftA3_NP (Proxy :: Proxy SListI)  (mkFun states) injections' states anames :: NP (K DecQ) xss))
-        (unTypeQ $ call states args0)
-  where
-    body' :: (NS (NP C) xss -> TExpQ b)
-          ->  NS (NP C) xss -> TExpQ b
-    body' rec = unC . body (liftCode . rec)
-
-    mkFun :: SListI xs => NP (K Name) xss -> Injection (NP C) xss xs -> K Name xs -> NP (K Name) xs -> K DecQ xs
-    mkFun states (Fn inj) (K state) as =
-        K $ funD state [ clause (varsP as) (normalB $ unTypeQ $ body' (call states) (unK $ inj $ varsE as)) []]
-
-    injections' :: NP (Injection (NP C) xss) xss
-    injections' = injections
-
-    call :: SListI2 xss => NP (K Name) xss -> NS (NP C) xss -> TExpQ c
-    call states args = collapse_NS $ cliftA2_NS (Proxy :: Proxy SListI)
-        (\(K state) args' -> K $ unsafeTExpCoerce $ appsE (varE state) (mkArgs args'))
-        states args
+sletrec_SOP f x = sletrec_NSNP_alt (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
 
 -- | 'sletrec_SOP' with additional argument in each state.
 sletrec1_SOP
     :: forall xss b c. SListI2 xss => Fixedpoint (SOP C xss -> C b -> C c)
-sletrec1_SOP f x = sletrec1_NSNP (\u v w -> f (u . unSOP) (SOP v) w) (unSOP x)
-
--- | 'sletrec_NSNP' with additional argument in each state.
-sletrec1_NSNP
-    :: forall xss b c. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b -> C c)
-sletrec1_NSNP body args0 b0 = liftCode $ do
-    states <- S.evalStateT (sequence'_NP $ pure_NP $ Comp $ K <$> newNameIndex "_state") (0 :: Int)
-    anames <- S.evalStateT (fmap unPOP $ sequence'_POP $ pure_POP $ Comp $ K <$> newNameIndex "_x") (0 :: Int)
-    bname  <- newName "_b"
-    unsafeTExpCoerce $ letE
-        (collapse_NP (cliftA3_NP (Proxy :: Proxy SListI)  (mkFun states bname) injections' states anames :: NP (K DecQ) xss))
-        (unTypeQ $ call states args0 (unC b0))
+sletrec1_SOP f sop b =
+    allFlattenCode (Proxy :: Proxy (C b, SOP C xss))
+    $ sletrec_SOP
+        (\rec x -> case bwd x of
+            ~(b', sop') -> f (\sop'' b'' -> rec (fwd (b'', sop''))) sop' b')
+        (fwd (b, sop))
   where
-    body' :: (NS (NP C) xss -> TExpQ b -> TExpQ c)
-          ->  NS (NP C) xss -> TExpQ b -> TExpQ c
-    body' rec x y = unC $
-        body (\x' y' -> liftCode (rec x' (unC y'))) x (liftCode y)
-
-    mkFun :: SListI xs => NP (K Name) xss -> Name -> Injection (NP C) xss xs -> K Name xs -> NP (K Name) xs -> K DecQ xs
-    mkFun states b (Fn inj) (K state) as =
-        K $ funD state [ clause (bangP (varP b) : varsP as) (normalB $ unTypeQ $ body' (call states) (unK $ inj $ varsE as) b') []]
-      where
-        b' :: TExpQ b
-        b' = unsafeTExpCoerce (varE b)
-
-    injections' :: NP (Injection (NP C) xss) xss
-    injections' = injections
-
-    call :: SListI2 xss => NP (K Name) xss -> NS (NP C) xss -> TExpQ b -> TExpQ c
-    call states args b = collapse_NS $ cliftA2_NS (Proxy :: Proxy SListI)
-        (\(K state) args' -> K $ unsafeTExpCoerce $ appsE (varE state) (unTypeQ b : mkArgs args'))
-        states args
-
-appsE :: ExpQ -> [ExpQ] -> ExpQ
-appsE = foldl' appE
-
-varsP :: SListI xs => NP (K Name) xs -> [PatQ]
-varsP names = collapse_NP $ map_NP (mapKK (bangP . varP)) names
-
-varsE :: SListI xs => NP (K Name) xs -> NP C xs
-varsE names = map_NP (\(K n) -> C (unsafeTExpCoerce (varE n))) names
-
-mkArgs ::SListI xs => NP C xs -> [ExpQ]
-mkArgs args = collapse_NP $ map_NP (\(C x) -> K (unTypeQ x)) args
-
-newNameIndex :: String -> S.StateT Int Q Name
-newNameIndex pfx = S.StateT $ \i -> do
-    n <- newName (pfx ++ show i)
-    return (n, i + 1)
+    fwd = from' @(C b, SOP C xss)
+    bwd = to'   @(C b, SOP C xss)
 
 -------------------------------------------------------------------------------
 -- GGP
@@ -372,3 +302,93 @@ gfrom x = gSumFrom (GHC.from x) (Proxy :: Proxy '[])
 
 gto :: forall a. (GTo a, GHC.Generic a) => SOP I (GCode a) -> a
 gto x = GHC.to (gSumTo x id ((\y -> case y of {}) :: SOP I '[] -> (GHC.Rep a) x))
+
+-------------------------------------------------------------------------------
+-- Alternative sletrec_NSNP using sletrecH
+-------------------------------------------------------------------------------
+
+-- I'm not proud of this.
+--
+-- But inspection-testing doesn't say this is bad
+-- (other use sletrec1_NSNP)
+--
+-- This is implementation of 'sletrec_NSNP' using 'sletrecH',
+-- i.e. without using unsafeTExpCoerce.
+--
+-- This shows that sletrecH is good enough.
+-- (The generated code looks just horrible).
+--
+sletrec_NSNP_alt
+    :: forall xss b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
+sletrec_NSNP_alt body args = withNSNP args $ \el f ->
+    f (sletrecH eqElem (loop id) el)
+  where
+    loop :: forall t yss. (Trans.MonadTrans t, Monad (t Q))
+         => (NS (NP C) yss -> NS (NP C) xss)
+         -> (forall c. Elem b xss c -> t Q (C c))
+         -> (forall d. Elem b yss d -> t Q (C d))
+    loop mk rec Here = do
+        let fn :: Pair b xss xs -> (:.:) (t Q) (FunTo b) xs
+            fn (Pair el kont) = Comp $ do
+                f <- rec el
+                return (FunTo (kont f))
+
+        let pop' :: NP (t Q :.: FunTo b) xss
+            pop' = cmap_NP (Proxy :: Proxy SListI) fn (pairs :: NP (Pair b xss) xss)
+
+        pop <- sequence'_NP pop'
+
+        let rec' :: NS (NP C) xss -> C b
+            rec' ns = collapse_NS (liftA2_NS (\(FunTo f) np -> K (f np)) pop ns)
+
+        return $ slam_NP' $ \np -> body rec' (mk (Z np))
+
+    loop mk rec (There next) = do
+        loop (mk . S) rec next
+
+-- Curry type-family with utilities
+type family Curry r xs where
+    Curry r '[]      = r
+    Curry r (x : xs) = x -> Curry r xs
+
+-- N-ary lambda
+slam_NP' :: forall xs r. SListI xs => (NP C xs -> C r) -> C (Curry r xs)
+slam_NP' f = case sList :: SList xs of
+    SNil  -> f Nil
+    SCons -> slam' $ \x -> slam_NP' (f . (x :*))
+
+-- N-ary apply
+sapply_NP :: forall xs r. SListI xs => C (Curry r xs) -> NP C xs -> C r
+sapply_NP = case sList :: SList xs of
+    SNil  -> \r Nil       -> r
+    SCons -> \f (x :* xs) -> sapply_NP (f @@ x) xs
+
+-- Elements, acts as tag for sletrecH
+data Elem :: Type -> [[Type]] -> Type -> Type where
+    Here  :: SListI xs    => Elem r (xs ': xss) (Curry r xs)
+    There :: Elem r xss f -> Elem r (ys ': xss) f
+
+eqElem :: Elem b xss x -> Elem b xss y -> Maybe (x :~: y)
+eqElem Here      Here      = Just Refl
+eqElem (There x) (There y) = eqElem x y
+eqElem _         _         = Nothing
+
+-- Pair of "tycon" and saturated application.
+data Pair b xss xs where
+    Pair :: Elem b xss r
+         -> (C r -> NP C xs -> C b)
+         -> Pair b xss xs
+
+pairs :: forall xss b. SListI2 xss => NP (Pair b xss) xss
+pairs = case sList :: SList xss of
+    SNil  -> Nil
+    SCons -> Pair Here sapply_NP :* map_NP shiftPair pairs
+
+shiftPair :: Pair b xss ys -> Pair b (xs : xss) ys
+shiftPair (Pair el f) = Pair (There el) f
+
+newtype FunTo b xs = FunTo (NP C xs -> C b)
+
+withNSNP :: SListI2 xss => NS (NP C) xss -> (forall r. Elem b xss r -> (C r -> C b) -> res) -> res
+withNSNP (Z np) k = k Here (`sapply_NP` np)
+withNSNP (S ns) k = withNSNP ns (\el f -> k (There el) f)
