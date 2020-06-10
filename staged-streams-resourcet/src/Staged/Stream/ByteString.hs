@@ -18,11 +18,11 @@ readByteString :: R.MonadResource m => StreamM m FilePath BS.ByteString
 readByteString
     = withBinaryFile sReadMode
     $ unfold id
-    $ \hdl k -> C [|| do
-        bs <- liftIO (BS.hGetSome $$(unC hdl) 32768)
+    $ \hdl k -> toCode [|| do
+        bs <- liftIO (BS.hGetSome $$(fromCode hdl) 32768)
         if BS.null bs
-        then $$(unC $ k Nothing)
-        else $$(unC $ k (Just (C [|| bs ||], hdl)))
+        then $$(fromCode $ k Nothing)
+        else $$(fromCode $ k (Just (toCode [|| bs ||], hdl)))
         ||]
 
 -- writeByteString

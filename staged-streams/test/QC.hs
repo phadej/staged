@@ -25,7 +25,7 @@ main = defaultMain $ testGroup "QuickCheck"
     [ testProperty "toList . fromList = spineStrict" $
         let prop :: [A] -> Property
             prop xs = xs ===
-                $$(S.toList sunit $ S.fromList $ const $ C [|| xs ||])
+                $$(S.toList sunit $ S.fromList $ const $ toCode [|| xs ||])
         in prop
 
     , testProperty "toList . fromList" $

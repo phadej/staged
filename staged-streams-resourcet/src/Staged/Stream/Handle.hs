@@ -27,21 +27,21 @@ withBinaryFile
     -> StreamM m Handle c
     -> StreamM m FilePath c
 withBinaryFile mode = bracket
-    (\f -> C [|| openBinaryFile ||] @@ f @@ mode)
-    (\hdl -> C [|| hClose ||] @@ hdl)
+    (\f -> toCode [|| openBinaryFile ||] @@ f @@ mode)
+    (\hdl -> toCode [|| hClose ||] @@ hdl)
 
 -------------------------------------------------------------------------------
 -- IOModes
 -------------------------------------------------------------------------------
 
 sReadMode      :: C IOMode
-sReadMode      = C [|| ReadMode ||]
+sReadMode      = toCode [|| ReadMode ||]
 
 sWriteMode     :: C IOMode
-sWriteMode     = C [|| WriteMode ||]
+sWriteMode     = toCode [|| WriteMode ||]
 
 sAppendMode    :: C IOMode
-sAppendMode    = C [|| AppendMode ||]
+sAppendMode    = toCode [|| AppendMode ||]
 
 sReadWriteMode :: C IOMode
-sReadWriteMode = C [|| ReadWriteMode ||]
+sReadWriteMode = toCode [|| ReadWriteMode ||]

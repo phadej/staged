@@ -12,6 +12,7 @@ module Staged.Commons (
     -- * Types
     Code (..),
     C,
+    Quote, Q,
     -- * Conversions
     unC,
     liftCode,
@@ -75,10 +76,12 @@ module Staged.Commons (
     sliftIO,
     -- * Int
     sint,
+    -- * Because ...
+    MonadFix_,
     ) where
 
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
-import Language.Haskell.TH (Name, Q, newName, runIO, valD, varP, varE, normalB, letE)
+import Language.Haskell.TH (Name, newName, runIO, valD, varP, varE, normalB, letE)
 import Language.Haskell.TH.Syntax (unsafeTExpCoerce, TExp)
 import Control.Monad.IO.Class (MonadIO (..))
 import System.IO.Unsafe (unsafeInterleaveIO)
@@ -94,8 +97,8 @@ import Staged.Compat
 -- Constructors
 -------------------------------------------------------------------------------
 
-sapply :: IsCode (a -> b) cab => cab -> C a -> C b
-sapply f x = C [|| $$(unC $ toCode f) $$(unC x) ||]
+sapply :: (IsCode m (a -> b) cab, Quote m) => cab -> Code m a -> Code m b
+sapply f x = toCode [|| $$(fromCode $ toCode f) $$(fromCode x) ||]
 
 -- | Infix version of 'sapply'
 --
@@ -104,7 +107,7 @@ sapply f x = C [|| $$(unC $ toCode f) $$(unC x) ||]
 -- @
 -- [|| (+) ||] '@@' a '@@' b
 -- @
-(@@) :: IsCode (a -> b) cab => cab -> C a -> C b
+(@@) :: (IsCode m (a -> b) cab, Quote m) => cab -> Code m a -> Code m b
 (@@) = sapply
 
 infixl 0 @@
@@ -113,24 +116,24 @@ infixl 0 @@
 -- Unit
 -------------------------------------------------------------------------------
 
-sunit :: C ()
-sunit = C [|| () ||]
+sunit :: Quote m => Code m ()
+sunit = toCode [|| () ||]
 
 -------------------------------------------------------------------------------
 -- Conditionals
 -------------------------------------------------------------------------------
 
-strue :: C Bool
-strue = C [|| True ||]
+strue :: Quote m => Code m Bool
+strue = toCode [|| True ||]
 
-sfalse :: C Bool
-sfalse = C [|| False ||]
+sfalse :: Quote m => Code m Bool
+sfalse = toCode [|| False ||]
 
-sIfThenElse :: C Bool -> C a -> C a -> C a
-sIfThenElse b t e = C [||
-    if $$(unC b)
-    then $$(unC t)
-    else $$(unC e)
+sIfThenElse :: Quote m => Code m Bool -> Code m a -> Code m a -> Code m a
+sIfThenElse b t e = toCode [||
+    if $$(fromCode b)
+    then $$(fromCode t)
+    else $$(fromCode e)
     ||]
 
 ------------------------------------------------------------------------------
@@ -138,68 +141,68 @@ sIfThenElse b t e = C [||
 -------------------------------------------------------------------------------
 
 -- | A Class for 'fn' which are morally @Code m a -> Code m b@ functions.
-class ToCodeFn a b fn | fn -> a b where
-    toFn :: fn -> C a -> C b
+class ToCodeFn m a b fn | fn -> m a b where
+    toFn :: fn -> Code m a -> Code m b
 
-instance (fn ~ TExp (a -> b)) => ToCodeFn a b (Q fn) where
+instance (fn ~ TExp (a -> b)) => ToCodeFn  Q a b (Q fn) where
     toFn = sapply
 
-instance (fn ~ (a -> b), m ~ Q) => ToCodeFn a b (Code m fn) where
+instance (fn ~ (a -> b), Quote m) => ToCodeFn m a b (Code m fn) where
     toFn = sapply
 
-instance (a' ~ Code Q a, b' ~ Code Q b) => ToCodeFn a b (a' -> b') where
+instance (a' ~ Code m a, b' ~ Code m b, Quote m) => ToCodeFn m a b (a' -> b') where
     toFn = id
 
 -- | A Class for 'fn' which are morally @Code m a -> Code m b -> Code m c@ functions.
-class ToCodeFn2 a b c fn | fn -> a b c where
-    toFn2 :: fn -> C a -> C b -> C c
+class ToCodeFn2 m a b c fn | fn -> m a b c where
+    toFn2 :: fn -> Code m a -> Code m b -> Code m c
 
-instance (fn ~ TExp (a -> b -> c)) => ToCodeFn2 a b c (Q fn) where
+instance (fn ~ TExp (a -> b -> c)) => ToCodeFn2 Q a b c (Q fn) where
     toFn2 f x y = f @@ x @@ y
 
-instance (fn ~ (a -> b -> c), m ~ Q) => ToCodeFn2 a b c (Code m fn) where
+instance (fn ~ (a -> b -> c), Quote m) => ToCodeFn2 m a b c (Code m fn) where
     toFn2 f x y = f @@ x @@ y
 
-instance (a' ~ Code Q a, bc' ~ (Code Q b -> Code Q c)) => ToCodeFn2 a b c (a' -> bc') where
+instance (a' ~ Code m a, bc' ~ (Code m b -> Code m c), Quote m) => ToCodeFn2 m a b c (a' -> bc') where
     toFn2 = id
 
-fromFn :: (C a -> C b) -> C (a -> b)
-fromFn f = C [|| \_x -> $$(unC $ f (C [|| _x ||])) ||]
+fromFn :: Quote m => (Code m a -> Code m b) -> Code m (a -> b)
+fromFn f = toCode [|| \_x -> $$(fromCode $ f (toCode [|| _x ||])) ||]
 
-fromFn2 :: (C a -> C b -> C c) -> C (a -> b -> c)
-fromFn2 f = C [|| \_x _y -> $$(unC $ f (C [|| _x ||]) (C [|| _y ||])) ||]
+fromFn2 :: Quote m => (Code m a -> Code m b -> Code m c) -> Code m (a -> b -> c)
+fromFn2 f = toCode [|| \_x _y -> $$(fromCode $ f (toCode [|| _x ||]) (toCode [|| _y ||])) ||]
 
 -------------------------------------------------------------------------------
 -- Functions
 -------------------------------------------------------------------------------
 
-sid :: C a -> C a
+sid :: Quote m => Code m a -> Code m a
 sid = toFn [|| id ||]
 
-sconst :: IsCode a ca => ca -> C b -> C a
+sconst :: IsCode m a ca => ca -> Code m b -> Code m a
 sconst = const . toCode
 
 -------------------------------------------------------------------------------
 -- Let
 -------------------------------------------------------------------------------
 
-slet :: C a -> (C a -> C r) -> C r
-slet expr k = C [||
-        let _x = $$(unC expr)
-        in $$(unC $ k $ C [|| _x ||])
+slet :: Quote q => Code q a -> (Code q a -> Code q r) -> Code q r
+slet expr k = toCode [||
+        let _x = $$(fromCode expr)
+        in $$(fromCode $ k $ toCode [|| _x ||])
     ||]
 
-slet' :: C a -> (C a -> C r) -> C r
-slet' expr k = C [||
-        let !_x = $$(unC expr)
-        in $$(unC $ k $ C [|| _x ||])
+slet' :: Quote q => Code q a -> (Code q a -> Code q r) -> Code q r
+slet' expr k = toCode [||
+        let !_x = $$(fromCode expr)
+        in $$(fromCode $ k $ toCode [|| _x ||])
     ||]
 
-slam :: (C a -> C b) -> C (a -> b)
+slam :: Quote q => (Code q a -> Code q b) -> Code q (a -> b)
 slam = fromFn
 
-slam' :: (C a -> C b) -> C (a -> b)
-slam' f = C [|| \ !_x -> $$(unC $ f (C [|| _x ||])) ||]
+slam' :: Quote q => (Code q a -> Code q b) -> Code q (a -> b)
+slam' f = toCode [|| \ !_x -> $$(fromCode $ f (toCode [|| _x ||])) ||]
 
 -------------------------------------------------------------------------------
 -- LetRec
@@ -218,9 +221,9 @@ slam' f = C [|| \ !_x -> $$(unC $ f (C [|| _x ||])) ||]
 -- @
 --
 sletrec
-    :: forall a b. Ord a
-    => (forall t. (Trans.MonadTrans t, Monad (t Q)) => (a -> t Q (Code Q b)) -> (a -> t Q (Code Q b)))
-    -> a -> Code Q b
+    :: forall a b q. (Ord a, Quote q, MonadFix_ q)
+    => (forall t. (Trans.MonadTrans t, Monad (t q)) => (a -> t q (Code q b)) -> (a -> t q (Code q b)))
+    -> a -> Code q b
 sletrec f x = liftCode $ do
     (expr, bindings) <- S.runStateT (loop x) Map.empty
     unsafeTExpCoerce $ letE
@@ -229,7 +232,7 @@ sletrec f x = liftCode $ do
         ]
         (unTypeCode expr)
   where
-    loop :: a -> M a b (Code Q b)
+    loop :: a -> M q a b (Code q b)
     loop y = do
         memo <- S.get
         case Map.lookup y memo of
@@ -238,12 +241,12 @@ sletrec f x = liftCode $ do
                 _ <- mfix_ $ \yCode -> do
                     S.modify (Map.insert y (name, yCode))
                     f loop y
-                return $ C $ unsafeTExpCoerce $ varE name
+                return $ unsafeCodeCoerce $ varE name
 
             Just (name, _) ->
-                return $ C $ unsafeTExpCoerce $ varE name
+                return $ unsafeCodeCoerce $ varE name
 
-type M a b = S.StateT (Map.Map a (Name, Code Q b)) Q
+type M q a b = S.StateT (Map.Map a (Name, Code q b)) q
 
 -------------------------------------------------------------------------------
 -- Heteregeneous LetRec
@@ -323,10 +326,11 @@ type M a b = S.StateT (Map.Map a (Name, Code Q b)) Q
 -- e.g. @GEq@ type-class for equality.
 --
 sletrecH
-    :: forall f a. (forall x y. f x -> f y -> Maybe (x :~: y)) -- ^ equality on equation tags
-    -> (forall t b. (Trans.MonadTrans t, Monad (t Q)) => (forall c. f c -> t Q (Code Q c)) -> (f b -> t Q (Code Q b))) -- ^ open recursion callback
+    :: forall f a q. (Quote q, MonadFix_ q)
+    => (forall x y. f x -> f y -> Maybe (x :~: y)) -- ^ equality on equation tags
+    -> (forall t b. (Trans.MonadTrans t, Monad (t q)) => (forall c. f c -> t q (Code q c)) -> (f b -> t q (Code q b))) -- ^ open recursion callback
     -> f a   -- ^ equation tag
-    -> Code Q a  -- ^ resulting code
+    -> Code q a  -- ^ resulting code
 sletrecH eq f x = liftCode $ do
     (expr, bindings) <- S.runStateT (loop x) dmapEmpty
     unsafeTExpCoerce $ letE
@@ -335,7 +339,7 @@ sletrecH eq f x = liftCode $ do
         ]
         (unTypeCode expr)
   where
-    loop :: forall x. f x -> S.StateT (DMap f NameExp) Q (Code Q x)
+    loop :: forall x. f x -> S.StateT (DMap f (NameExp q)) q (Code q x)
     loop y = do
         memo <- S.get
         case dmapLookup eq y memo of
@@ -344,114 +348,115 @@ sletrecH eq f x = liftCode $ do
                 _ <- mfix_ $ \yCode -> do
                     S.modify (dmapInsert y (NE name yCode))
                     f loop y
-                return $ C $ unsafeTExpCoerce $ varE name
+                return $ unsafeCodeCoerce $ varE name
 
             Just (NE name _) -> do
-                return $ C $ unsafeTExpCoerce $ varE name
+                return $ unsafeCodeCoerce $ varE name
 
-data NameExp b = NE !Name (Code Q b)
+data NameExp q b = NE !Name (Code q b)
 
 -------------------------------------------------------------------------------
 -- Monad
 -------------------------------------------------------------------------------
 
-sreturn :: Monad m => C a -> C (m a)
+sreturn :: (Quote q, Monad m) => Code q a -> Code q (m a)
 sreturn = toFn [|| return ||]
 
-sfmap :: Monad m => (C a -> C b) -> C (m a) -> C (m b)
-sfmap f x = C [|| fmap ||] @@ fromFn f @@ x
+sfmap :: (Quote q, Monad m) => (Code q a -> Code q b) -> Code q (m a) -> Code q (m b)
+sfmap f x = toCode [|| fmap ||] @@ fromFn f @@ x
 
 infixl 1 >>>=
-(>>>=) :: Monad m => C (m a) -> (C a -> C (m b)) -> C (m b)
-m >>>= k = C [|| (>>=) ||] @@ m @@ fromFn k
+(>>>=) :: (Quote q, Monad m) => Code q (m a) -> (Code q a -> Code q (m b)) -> Code q (m b)
+m >>>= k = toCode [|| (>>=) ||] @@ m @@ fromFn k
 
 -------------------------------------------------------------------------------
 -- Pairs
 -------------------------------------------------------------------------------
 
-spair :: C a -> C b -> C (a, b)
-spair x y = C [|| ($$(unC x), $$(unC y)) ||]
+spair :: Quote m => Code m a -> Code m b -> Code m (a, b)
+spair x y = toCode [|| ($$(fromCode x), $$(fromCode y)) ||]
 
-spairElim :: C (a, b) -> (C a -> C b -> C r) -> C r
-spairElim (C p) kont = C
-    [|| case $$p of
-            (_pfst, _psnd) -> $$(unC $ kont (C [|| _pfst ||]) (C [|| _psnd ||]))
+spairElim :: Quote m => Code m (a, b) -> (Code m a -> Code m b -> Code m r) -> Code m r
+spairElim p kont = toCode
+    [|| case $$(fromCode p) of
+            (_pfst, _psnd) -> $$(fromCode $ kont (toCode [|| _pfst ||]) (toCode [|| _psnd ||]))
     ||]
 
-sfst :: C (a, b) -> C a
+sfst :: Quote m => Code m (a, b) -> Code m a
 sfst = toFn [|| fst ||]
 
-ssnd :: C (a, b) -> C b
+ssnd :: Quote m => Code m (a, b) -> Code m b
 ssnd = toFn [|| snd ||]
 
 -------------------------------------------------------------------------------
 -- Maybe
 -------------------------------------------------------------------------------
 
-snothing :: C (Maybe a)
-snothing = C [|| Nothing ||]
+snothing :: Quote m => Code m (Maybe a)
+snothing = toCode [|| Nothing ||]
 
-sjust :: C a -> C (Maybe a)
+sjust :: Quote m => Code m a -> Code m (Maybe a)
 sjust = toFn [|| Just ||]
 
-smaybe :: C (Maybe a) -> C r -> (C a -> C r) -> C r
-smaybe m n j = C [|| case $$(unC m) of
-    Nothing -> $$(unC n)
-    Just _x -> $$(unC $ j $ C [|| _x ||])
+smaybe :: Quote m => Code m (Maybe a) -> Code m r -> (Code m a -> Code m r) -> Code m r
+smaybe m n j = toCode [|| case $$(fromCode m) of
+    Nothing -> $$(fromCode n)
+    Just _x -> $$(fromCode $ j $ toCode [|| _x ||])
     ||]
 
 -------------------------------------------------------------------------------
 -- Either
 -------------------------------------------------------------------------------
 
-sleft :: C a -> C (Either a b)
+sleft :: Quote m => Code m a -> Code m (Either a b)
 sleft = toFn [|| Left ||]
 
-sright :: C b -> C (Either a b)
+sright :: Quote m => Code m b -> Code m (Either a b)
 sright = toFn [|| Right ||]
 
-seither :: C (Either a b) -> (C a -> C r) -> (C b -> C r) -> C r
-seither e l r = C [|| case $$(unC e) of
-    Left _x  -> $$(unC $ l $ C [|| _x ||])
-    Right _y -> $$(unC $ r $ C [|| _y ||])
+seither :: Quote m => Code m (Either a b) -> (Code m a -> Code m r) -> (Code m b -> Code m r) -> Code m r
+seither e l r = toCode [|| case $$(fromCode e) of
+    Left _x  -> $$(fromCode $ l $ toCode [|| _x ||])
+    Right _y -> $$(fromCode $ r $ toCode [|| _y ||])
     ||]
 
 -------------------------------------------------------------------------------
 -- List
 -------------------------------------------------------------------------------
 
-snil :: C [a]
-snil = C [|| [] ||]
+snil :: Quote m => Code m [a]
+snil = toCode [|| [] ||]
 
-scons :: C a -> C [a] -> C [a]
-scons x xs = C [|| $$(unC x) : $$(unC xs) ||]
+scons :: Quote m => Code m a -> Code m [a] -> Code m [a]
+scons x xs = toCode [|| $$(fromCode x) : $$(fromCode xs) ||]
 
 scaseList
-    :: C [a]
-    -> C r
-    -> (C a -> C [a] -> C r)
-    -> C r
-scaseList xs nil cons = C [||
-    case $$(unC xs) of
-        []       -> $$(unC nil)
-        (_x:_xs) -> $$(unC $ cons (C [|| _x ||]) (C [|| _xs ||]))
+    :: Quote m
+    => Code m [a]
+    -> Code m r
+    -> (Code m a -> Code m [a] -> Code m r)
+    -> Code m r
+scaseList xs nil cons = toCode [||
+    case $$(fromCode xs) of
+        []       -> $$(fromCode nil)
+        (_x:_xs) -> $$(fromCode $ cons (toCode [|| _x ||]) (toCode [|| _xs ||]))
     ||]
 
 -------------------------------------------------------------------------------
 -- Num
 -------------------------------------------------------------------------------
 
-splus :: Num a => C a -> C a -> C a
+splus :: (Num a, Quote m) => Code m a -> Code m a -> Code m a
 splus = toFn2 [|| (+) ||]
 
-smult :: Num a => C a -> C a -> C a
+smult :: (Num a, Quote m) => Code m a -> Code m a -> Code m a
 smult = toFn2 [|| (*) ||]
 
 -------------------------------------------------------------------------------
 -- MonadIO
 -------------------------------------------------------------------------------
 
-sliftIO :: MonadIO m => C (IO a) -> C (m a)
+sliftIO :: (Quote m, MonadIO n) => Code m (IO a) -> Code m (n a)
 sliftIO = toFn [|| liftIO ||]
 
 -------------------------------------------------------------------------------
@@ -459,8 +464,8 @@ sliftIO = toFn [|| liftIO ||]
 -------------------------------------------------------------------------------
 
 -- | @'liftTyped' \@Int@, with type annotation.
-sint :: Int -> C Int
-sint n = C [|| $$(unC $ liftTyped n) :: Int ||]
+sint :: Quote m => Int -> Code m Int
+sint n = toCode [|| $$(fromCode $ liftTyped n) :: Int ||]
 
 -------------------------------------------------------------------------------
 -- Our version of MonadFix, to avoid orphan instance
