@@ -191,7 +191,7 @@ slet expr k = C [||
 
 slet' :: C a -> (C a -> C r) -> C r
 slet' expr k = C [||
-        let ! _x = $$(unC expr)
+        let !_x = $$(unC expr)
         in $$(unC $ k $ C [|| _x ||])
     ||]
 
@@ -199,7 +199,7 @@ slam :: (C a -> C b) -> C (a -> b)
 slam = fromFn
 
 slam' :: (C a -> C b) -> C (a -> b)
-slam' f = C [|| \ ! _x -> $$(unC $ f (C [|| _x ||])) ||]
+slam' f = C [|| \ !_x -> $$(unC $ f (C [|| _x ||])) ||]
 
 -------------------------------------------------------------------------------
 -- LetRec
