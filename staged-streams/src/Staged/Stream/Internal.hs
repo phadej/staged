@@ -22,7 +22,7 @@ import Data.Kind           (Constraint, Type)
 import Data.Proxy          (Proxy (..))
 import Data.Type.Equality  ((:~:) (..))
 import GHC.TypeLits        (ErrorMessage (..), TypeError)
-import Language.Haskell.TH (Q, TExp)
+import Language.Haskell.TH (TExp)
 
 import qualified Control.Monad.Trans.Class as Trans
 import qualified GHC.Generics              as GHC
@@ -124,9 +124,10 @@ instance FlattenCode2 (C x) '[ '[ x ] ] where
     codeFlatBwd2 (S ns)         = case ns of {}
 
 instance (e ~ TExp x) => FlattenCode2 (Q e) '[ '[ x ] ] where
-    codeFlatFwd2 (I x) = Z (C x :* Nil)
-    codeFlatBwd2 (Z (C x :* Nil)) = I x
-    codeFlatBwd2 (S ns)            = case ns of {}
+    codeFlatFwd2 (I x) = Z (Code x :* Nil)
+
+    codeFlatBwd2 (Z (Code x :* Nil)) = I x
+    codeFlatBwd2 (S ns)              = case ns of {}
 
 -------------------------------------------------------------------------------
 -- Fixedpoints

@@ -89,7 +89,7 @@ fromPure (MkStream start step) = MkStreamM start step
 --
 toPure :: StreamM Identity a b -> Stream a b
 toPure (MkStreamM start steps) = MkStream start $ \curr k ->
-    [|| runIdentity ||] @@ (steps curr $ \s -> C [|| Identity ||] @@ k s )
+    [|| runIdentity ||] @@ (steps curr $ \s -> toCode [|| Identity ||] @@ k s )
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -101,7 +101,7 @@ toPure (MkStreamM start steps) = MkStream start $ \curr k ->
 -- 'singleton' :: C b -> 'StreamM' m a b
 -- 'singleton' b = 'map' ([|| const ||] @@ b)
 -- @
-singleton :: forall b a m cb. IsCode b cb => cb -> StreamM m a b
+singleton :: forall b a m cb. IsCode Q b cb => cb -> StreamM m a b
 singleton = fromPure . Pure.singleton
 
 -- |
@@ -109,7 +109,7 @@ singleton = fromPure . Pure.singleton
 -- @
 -- 'fromList' :: (C a -> C [b]) -> 'StreamM' m a b
 -- @
-fromList :: ToCodeFn a [b] fn => fn -> StreamM m a b
+fromList :: ToCodeFn Q a [b] fn => fn -> StreamM m a b
 fromList = fromPure . Pure.fromList
 
 -- |
@@ -118,7 +118,7 @@ fromList = fromPure . Pure.fromList
 -- 'fromListM' :: (C a -> C (m [b])) -> 'StreamM' m a b
 -- @
 --
-fromListM :: forall a b m fn. (Monad m, ToCodeFn a (m [b]) fn) => fn -> StreamM m a b
+fromListM :: forall a b m fn. (Monad m, ToCodeFn Q a (m [b]) fn) => fn -> StreamM m a b
 fromListM f = mkStreamM (Left . toFn f) steps where
     steps
         :: Either (C (m [b])) (C [b])
@@ -137,7 +137,7 @@ fromListM f = mkStreamM (Left . toFn f) steps where
 -- 'unfold' :: (C a -> C b) -> (C b -> CPS (Maybe (C c, C b))) -> 'StreamM' m a c
 -- @
 unfold
-    :: forall a b c m fn. ToCodeFn a b fn
+    :: forall a b c m fn. ToCodeFn Q a b fn
     => fn
     -> (forall r. C b -> (Maybe (C c, C b) -> C (m r)) -> C (m r)) -- ^ unfolding
     -> StreamM m a c
@@ -152,7 +152,7 @@ unfold start f = mkStreamM (toFn start) steps where
 -- @
 -- 'iterate' :: (C a -> C a) -> 'StreamM' m a a
 -- @
-iterate :: (ToCodeFn a a endo) => endo -> StreamM m a a
+iterate :: (ToCodeFn Q a a endo) => endo -> StreamM m a a
 iterate f = fromPure (Pure.iterate f)
 
 -- |
@@ -160,7 +160,7 @@ iterate f = fromPure (Pure.iterate f)
 -- @
 -- 'iterateM' :: (C a -> C (m a)) -> C a -> 'StreamM' m i a
 -- @
-iterateM :: (Monad m, ToCodeFn a (m a) endo) => endo -> StreamM m a a
+iterateM :: (Monad m, ToCodeFn Q a (m a) endo) => endo -> StreamM m a a
 iterateM f = mkStreamM id $ \curr k ->
     toFn f curr >>>= \x ->
     k (Emit curr x)
@@ -170,7 +170,7 @@ iterateM f = mkStreamM id $ \curr k ->
 -- @
 -- 'replicate' :: C Int -> C a -> 'Stream' i a
 -- @
-replicate :: (IsCode a ca, IsCode Int ci) => ci -> ca -> StreamM m i a
+replicate :: (IsCode Q a ca, IsCode Q Int ci) => ci -> ca -> StreamM m i a
 replicate i a = take i (repeat a)
 
 -- |
@@ -178,7 +178,7 @@ replicate i a = take i (repeat a)
 -- @
 -- 'replicate' :: C Int -> C a -> 'Stream' i a
 -- @
-replicateM :: (Monad m, IsCode (m a) ca, IsCode Int ci) => ci -> ca -> StreamM m i a
+replicateM :: (Monad m, IsCode Q (m a) ca, IsCode Q Int ci) => ci -> ca -> StreamM m i a
 replicateM i a = take i (repeatM a)
 
 -------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ replicateM i a = take i (repeatM a)
 -- @
 -- 'map' :: (C b -> C c) -> 'Stream' a b -> 'Stream' a c
 -- @
-map :: forall a b c m fn. ToCodeFn a b fn
+map :: forall a b c m fn. ToCodeFn Q a b fn
     => fn -> StreamM m c a -> StreamM m c b
 map f (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
     go :: (SOP C xss -> (Step (C a) (SOP C xss) -> C r) -> C r)
@@ -206,7 +206,7 @@ map f (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
 -- 'mapWithInput' :: (C a -> C b -> C c) -> 'StreamM' m a b -> 'StreamM' m a c
 -- @
 mapWithInput
-    :: forall a b c m fn. ToCodeFn2 a b c fn
+    :: forall a b c m fn. ToCodeFn2 Q a b c fn
     => fn -> StreamM m a b -> StreamM m a c
 mapWithInput f (MkStreamM s0 steps0) =
     mkStreamM (\a -> (a, s0 a)) $ \(a, curr) k -> steps0 curr $ \case
@@ -220,7 +220,7 @@ mapWithInput f (MkStreamM s0 steps0) =
 -- 'lmap' :: (C a -> C b) -> 'StreamM' m b c -> 'StreamM' m a c
 -- @
 lmap
-    :: forall a b c m fn. ToCodeFn a b fn
+    :: forall a b c m fn. ToCodeFn Q a b fn
     => fn -> StreamM m b c -> StreamM m a c
 lmap f (MkStreamM s0 steps0) = MkStreamM (s0 . toFn f) steps0
 
@@ -230,7 +230,7 @@ lmap f (MkStreamM s0 steps0) = MkStreamM (s0 . toFn f) steps0
 -- 'traverse' :: (C b -> C (m c)) -> 'StreamM' m a b -> 'StreamM' m a c
 -- @
 traverse
-    :: forall a b c m fn. (Monad m, ToCodeFn b (m c) fn)
+    :: forall a b c m fn. (Monad m, ToCodeFn Q b (m c) fn)
     => fn -> StreamM m a b -> StreamM m a c
 traverse f (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
     go :: (SOP C xss -> (Step (C b) (SOP C xss) -> C (m r)) -> C (m r))
@@ -249,7 +249,7 @@ traverse f (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
 -- 'filter' :: (C a -> C Bool) -> 'StreamM' m c a -> 'StreamM' m c a
 -- @
 filter
-    :: forall a c m predicate. (ToCodeFn a Bool predicate)
+    :: forall a c m predicate. (ToCodeFn Q a Bool predicate)
     => predicate -> StreamM m c a -> StreamM m c a
 filter p (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
     go :: (SOP C xss -> (Step (C a) (SOP C xss) -> C r) -> C r)
@@ -268,7 +268,7 @@ filter p (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
 -- 'filterM' :: (C a -> C (m Bool)) -> 'StreamM' m c a -> 'StreamM' m c a
 -- @
 filterM
-    :: forall a c m predicateM. (Monad m, ToCodeFn a (m Bool) predicateM)
+    :: forall a c m predicateM. (Monad m, ToCodeFn Q a (m Bool) predicateM)
     => predicateM -> StreamM m c a -> StreamM m c a
 filterM p (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
     go :: (SOP C xss -> (Step (C a) (SOP C xss) -> C (m r)) -> C (m r))
@@ -290,29 +290,29 @@ filterM p (MkStreamM s0 steps0) = MkStreamM s0 (go steps0) where
 -- @
 -- 'take' :: C Int -> 'StreamM' m a b -> 'StreamM' m a b
 -- @
-take :: IsCode Int n => n -> StreamM m a b -> StreamM m a b
+take :: IsCode Q Int n => n -> StreamM m a b -> StreamM m a b
 take n (MkStreamM start steps) = do
-    mkStreamM (\a -> (C [|| 0 ||], start a)) $ \(i, xss) k -> steps xss $ \case
+    mkStreamM (\a -> (toCode [|| 0 ||], start a)) $ \(i, xss) k -> steps xss $ \case
         Stop        -> k Stop
         Skip   xss' -> k (Skip (i, xss'))
         Emit b xss' -> sIfThenElse
-            (C [|| (<) ||] @@ i @@ toCode n)
-            (k (Emit b (C [|| (1 +) ||] @@ i, xss')))
+            (toCode [|| (<) ||] @@ i @@ toCode n)
+            (k (Emit b (toCode [|| (1 +) ||] @@ i, xss')))
             (k Stop)
 -- |
 --
 -- @
 -- 'drop' :: C Int -> 'StreamM' m a b -> 'StreamM' m a b
 -- @
-drop :: IsCode Int n => n -> StreamM m a b -> StreamM m a b
+drop :: IsCode Q Int n => n -> StreamM m a b -> StreamM m a b
 drop n (MkStreamM start steps) =
     mkStreamM (\a -> DropL (toCode n) (start a)) $ \step k -> case step of
         DropL m xss -> steps xss $ \case
             Stop        -> k Stop
             Skip   xss' -> k (Skip (DropL m xss'))
             Emit b xss' -> sIfThenElse
-                (C [|| (0 <) ||] @@ m)
-                (k (Skip   (DropL (C [|| subtract 1 ||] @@ m) xss')))
+                (toCode [|| (0 <) ||] @@ m)
+                (k (Skip   (DropL (toCode [|| subtract 1 ||] @@ m) xss')))
                 (k (Emit b (DropR xss')))
 
         DropR xss -> steps xss $ \case
@@ -349,7 +349,7 @@ empty = fromPure Pure.empty
 -- @
 -- 'zipWith' :: (C a -> C b -> C c) -> 'StreamM' m i a -> 'StreamM' m i b -> 'StreamM' m i c
 -- @
-zipWith :: forall i a b c m abc. ToCodeFn2 a b c abc => abc -> StreamM m i a -> StreamM m i b -> StreamM m i c
+zipWith :: forall i a b c m abc. ToCodeFn2 Q a b c abc => abc -> StreamM m i a -> StreamM m i b -> StreamM m i c
 zipWith h (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
     mkStreamM (\i -> ZipL (start0 i) (start1 i)) (steps steps0 steps1)
   where
@@ -375,7 +375,7 @@ zipWith h (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
 -- 'zipWithM' :: (C a -> C b -> C (m c)) -> 'StreamM' m i a -> 'StreamM' m i b -> 'StreamM' m i c
 -- @
 zipWithM
-    :: forall i a b c m abc. (Monad m, ToCodeFn2 a b (m c) abc)
+    :: forall i a b c m abc. (Monad m, ToCodeFn2 Q a b (m c) abc)
     => abc -> StreamM m i a -> StreamM m i b -> StreamM m i c
 zipWithM h (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
     mkStreamM (\i -> ZipL (start0 i) (start1 i)) (steps steps0 steps1)
@@ -402,7 +402,7 @@ zipWithM h (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
 -- @
 -- 'repeat' :: 'C' a -> 'StreamM' m i a
 -- @
-repeat :: IsCode a ca => ca -> StreamM m i a
+repeat :: IsCode Q a ca => ca -> StreamM m i a
 repeat = fromPure . Pure.repeat
 
 -- |
@@ -410,7 +410,7 @@ repeat = fromPure . Pure.repeat
 -- @
 -- 'repeatM' :: 'C' (m a) -> 'StreamM' m i a
 -- @
-repeatM :: (Monad m, IsCode (m a) cma) => cma -> StreamM m i a
+repeatM :: (Monad m, IsCode Q (m a) cma) => cma -> StreamM m i a
 repeatM a = mkStreamM (\_ -> ()) $ \() k -> toCode a >>>= \a' -> k (Emit a' ())
 
 -------------------------------------------------------------------------------
@@ -424,7 +424,7 @@ repeatM a = mkStreamM (\_ -> ()) $ \() k -> toCode a >>>= \a' -> k (Emit a' ())
 --             -> 'StreamM' i a -> 'StreamM' i b -> 'StreamM' i c
 -- @
 alignWith
-    :: forall i a b c m ac bc abc. (ToCodeFn a c ac, ToCodeFn b c bc, ToCodeFn2 a b c abc)
+    :: forall i a b c m ac bc abc. (ToCodeFn Q a c ac, ToCodeFn Q b c bc, ToCodeFn2 Q a b c abc)
     => ac -> bc -> abc
     -> StreamM m i a -> StreamM m i b -> StreamM m i c
 alignWith ac bc abc (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
@@ -463,7 +463,7 @@ alignWith ac bc abc (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
 --             -> 'StreamM' i a -> 'StreamM' i b -> 'StreamM' i c
 -- @
 alignWithM
-    :: forall i a b c m ac bc abc. (Monad m, ToCodeFn a (m c) ac, ToCodeFn b (m c) bc, ToCodeFn2 a b (m c) abc)
+    :: forall i a b c m ac bc abc. (Monad m, ToCodeFn Q a (m c) ac, ToCodeFn Q b (m c) bc, ToCodeFn2 Q a b (m c) abc)
     => ac -> bc -> abc
     -> StreamM m i a -> StreamM m i b -> StreamM m i c
 alignWithM ac bc abc (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
@@ -505,7 +505,7 @@ alignWithM ac bc abc (MkStreamM start0 steps0) (MkStreamM start1 steps1) =
 -- 'bfsTreeM' :: 'StreamM' m a a -> (C a -> C (m Bool)) -> 'StreamM' m a a
 -- @
 bfsTreeM
-    :: forall a m predicateM. (Monad m, ToCodeFn a (m Bool) predicateM)
+    :: forall a m predicateM. (Monad m, ToCodeFn Q a (m Bool) predicateM)
     => StreamM m a a  -- ^ endo-stream
     -> predicateM     -- ^ whether to recurse on a produced element
     -> StreamM m a a
@@ -545,7 +545,7 @@ idPipe = C.id
 -- @
 -- 'mapPipe' :: (C a -> C b) -> 'StreamM' m a b
 -- @
-mapPipe :: forall a b m fn. ToCodeFn a b fn => fn -> StreamM m a b
+mapPipe :: forall a b m fn. ToCodeFn Q a b fn => fn -> StreamM m a b
 mapPipe f = mkStreamM (Just . toFn f) step where
     step :: Maybe (C b) -> (Step (C b) (Maybe (C b)) -> C r) -> C r
     step Nothing  k = k Stop
@@ -556,7 +556,7 @@ mapPipe f = mkStreamM (Just . toFn f) step where
 -- @
 -- 'traversePipe' :: (C a -> C (m b)) -> 'StreamM' m a b
 -- @
-traversePipe :: forall a b m fn. (Monad m, ToCodeFn a (m b) fn) => fn -> StreamM m a b
+traversePipe :: forall a b m fn. (Monad m, ToCodeFn Q a (m b) fn) => fn -> StreamM m a b
 traversePipe f = mkStreamM (Just . toFn f) step where
     step :: Maybe (C (m b)) -> (Step (C b) (Maybe (C (m b))) -> C (m r)) -> C (m r)
     step Nothing   k = k Stop
@@ -567,7 +567,7 @@ traversePipe f = mkStreamM (Just . toFn f) step where
 -- @
 -- 'filterPipe' :: (C a -> C Bool) -> 'StreamM' m a a
 -- @
-filterPipe :: forall a m predicate. ToCodeFn a Bool predicate => predicate -> StreamM m a a
+filterPipe :: forall a m predicate. ToCodeFn Q a Bool predicate => predicate -> StreamM m a a
 filterPipe p = mkStreamM Just step where
     step :: Maybe (C a) -> (Step (C a) (Maybe (C a)) -> C r) -> C r
     step Nothing  k = k Stop
@@ -585,7 +585,7 @@ filterPipe p = mkStreamM Just step where
 -- @
 -- 'run' :: C a -> 'StreamM' m a b -> GHCCode (m ())
 -- @
-run :: forall a b m ca. (Monad m, IsCode a ca)
+run :: forall a b m ca. (Monad m, IsCode Q a ca)
     => ca -> StreamM m a b -> GHCCode (m ())
 run z (MkStreamM start steps0) =
     fromCode $ sletrec_SOP (body steps0) (start (toCode z))
@@ -604,7 +604,7 @@ run z (MkStreamM start steps0) =
 -- @
 -- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> StreamM m a b -> GHCCode (m r)
 -- @
-foldl :: forall r a b m fn init start. (Monad m, IsCode r init, IsCode a start, ToCodeFn2 r b r fn)
+foldl :: forall r a b m fn init start. (Monad m, IsCode Q r init, IsCode Q a start, ToCodeFn2 Q r b r fn)
       => fn -> init -> start -> StreamM m a b -> GHCCode (m r)
 foldl op e z (MkStreamM xs steps0) =
     fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
@@ -624,7 +624,7 @@ foldl op e z (MkStreamM xs steps0) =
 -- 'foldlM' :: (C r -> C b -> C (m r)) -> C r -> C a -> StreamM m a b -> GHCCode (m r)
 -- @
 foldlM
-    :: forall r a b m fn init start. (Monad m, IsCode r init, IsCode a start, ToCodeFn2 r b (m r) fn)
+    :: forall r a b m fn init start. (Monad m, IsCode Q r init, IsCode Q a start, ToCodeFn2 Q r b (m r) fn)
     => fn -> init -> start -> StreamM m a b -> GHCCode (m r)
 foldlM op e z (MkStreamM xs steps0) =
     fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
@@ -644,7 +644,7 @@ foldlM op e z (MkStreamM xs steps0) =
 -- 'toList' :: C a -> StreamM a b -> GHCCode (m [b])
 -- @
 toList
-    :: forall a b m ca. (Monad m, IsCode a ca)
+    :: forall a b m ca. (Monad m, IsCode Q a ca)
     => ca -> StreamM m a b -> GHCCode (m [b])
 toList a (MkStreamM start steps0) =
     fromCode $ sletrec_SOP (body steps0) (start (toCode a))

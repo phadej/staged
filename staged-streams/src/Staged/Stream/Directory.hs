@@ -23,14 +23,14 @@ import Staged.Stream.Combinators (bfsTreeM, fromListM, filterM)
 -- function in the @directory@ package.
 --
 listDirectory :: MonadIO m => StreamM m FilePath FilePath
-listDirectory = fromListM $ \(C dir) ->
-    sliftIO $ C [|| fmap (map ($$dir </>)) (Dir.listDirectory $$dir) ||]
+listDirectory = fromListM $ \dir ->
+    sliftIO $ toCode [|| fmap (map ($$(fromCode dir) </>)) (Dir.listDirectory $$(fromCode dir)) ||]
 
 -- | Recursively (breath-first) walk through the directory structure.
 recursiveListDirectory :: MonadIO m => StreamM m FilePath FilePath
 recursiveListDirectory = bfsTreeM listDirectory $ \fp ->
-    C [|| liftIO . Dir.doesDirectoryExist ||] @@ fp
+    toCode [|| liftIO . Dir.doesDirectoryExist ||] @@ fp
 
 -- | Filter with 'Dir.doesFileExist', i.e. return only existing files.
 files :: MonadIO m => StreamM m a FilePath -> StreamM m a FilePath
-files = filterM (\x -> sliftIO (C [|| Dir.doesFileExist ||] @@ x))
+files = filterM (\x -> sliftIO (toCode [|| Dir.doesFileExist ||] @@ x))

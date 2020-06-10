@@ -13,7 +13,7 @@ import Staged.Commons
 -- Simple example
 -------------------------------------------------------------------------------
 
-ex01 :: IsCode Bool cond => cond -> GHCCode Int
+ex01 :: IsCode Q Bool cond => cond -> GHCCode Int
 ex01 b = fromCode $ sIfThenElse (toCode b) (sint 1) (sint 2)
 
 -------------------------------------------------------------------------------

@@ -21,7 +21,7 @@ import Generics.SOP
 
 bracket
     :: forall a b c m acquire release.
-       (R.MonadResource m, Show a , ToCodeFn a (IO b) acquire, ToCodeFn b (IO ()) release)
+       (R.MonadResource m, Show a , ToCodeFn Q a (IO b) acquire, ToCodeFn Q b (IO ()) release)
     => acquire
     -> release
     -> StreamM m b c
@@ -38,15 +38,15 @@ bracket alloc free (MkStreamM start0 steps0) =
         start2 = Alloc
 
         steps2 :: Br a b xss -> (Step (C c) (Br a b xss) -> C (m r)) -> C (m r)
-        steps2 (Alloc a) k = C [|| do
-            p <- R.allocate $$(unC $ toFn alloc a) (\res -> $$(unC $ toFn free $ C [|| res ||]))
-            $$(unC $ k (Skip (Inner (sfst $ C [|| p ||]) (start1 (ssnd $ C [|| p ||])))))
+        steps2 (Alloc a) k = toCode [|| do
+            p <- R.allocate $$(fromCode $ toFn alloc a) (\res -> $$(fromCode $ toFn free $ toCode [|| res ||]))
+            $$(fromCode $ k (Skip (Inner (sfst $ toCode [|| p ||]) (start1 (ssnd $ toCode [|| p ||])))))
             ||]
 
         steps2 (Inner rk curr) k = steps1 curr $ \case
-            Stop        -> C $ [|| do
-                R.release $$(unC rk)
-                $$(unC $ k Stop)
+            Stop        -> toCode $ [|| do
+                R.release $$(fromCode rk)
+                $$(fromCode $ k Stop)
                 ||]
             Skip   next -> k (Skip (Inner rk next))
             Emit c next -> k (Emit c (Inner rk next))
