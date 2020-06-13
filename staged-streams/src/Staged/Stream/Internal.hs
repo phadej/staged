@@ -24,8 +24,7 @@ import Data.Type.Equality  ((:~:) (..))
 import GHC.TypeLits        (ErrorMessage (..), TypeError)
 import Language.Haskell.TH (TExp)
 
-import qualified Control.Monad.Trans.Class as Trans
-import qualified GHC.Generics              as GHC
+import qualified GHC.Generics as GHC
 
 import Data.SOP
        ((:.:) (..), I (..), K (..), NP (..), NS (..), SList (..), SListI,
@@ -324,17 +323,17 @@ sletrec_NSNP_alt
 sletrec_NSNP_alt body args = withNSNP args $ \el f ->
     f (sletrecH eqElem (loop id) el)
   where
-    loop :: forall t yss. (Trans.MonadTrans t, Monad (t Q))
+    loop :: forall m yss. Monad m
          => (NS (NP C) yss -> NS (NP C) xss)
-         -> (forall c. Elem b xss c -> t Q (C c))
-         -> (forall d. Elem b yss d -> t Q (C d))
+         -> (forall c. Elem b xss c -> m (C c))
+         -> (forall d. Elem b yss d -> m (C d))
     loop mk rec Here = do
-        let fn :: Pair b xss xs -> (:.:) (t Q) (FunTo b) xs
+        let fn :: Pair b xss xs -> (:.:) m (FunTo b) xs
             fn (Pair el kont) = Comp $ do
                 f <- rec el
                 return (FunTo (kont f))
 
-        let pop' :: NP (t Q :.: FunTo b) xss
+        let pop' :: NP (m :.: FunTo b) xss
             pop' = cmap_NP (Proxy :: Proxy SListI) fn (pairs :: NP (Pair b xss) xss)
 
         pop <- sequence'_NP pop'

@@ -222,7 +222,7 @@ slam' f = toCode [|| \ !_x -> $$(fromCode $ f (toCode [|| _x ||])) ||]
 --
 sletrec
     :: forall a b q. (Ord a, Quote q, MonadFix_ q)
-    => (forall t. (Trans.MonadTrans t, Monad (t q)) => (a -> t q (Code q b)) -> (a -> t q (Code q b)))
+    => (forall m. Monad m => (a -> m (Code q b)) -> (a -> m (Code q b)))
     -> a -> Code q b
 sletrec f x = liftCode $ do
     (expr, bindings) <- S.runStateT (loop x) Map.empty
@@ -328,8 +328,8 @@ type M q a b = S.StateT (Map.Map a (Name, Code q b)) q
 sletrecH
     :: forall f a q. (Quote q, MonadFix_ q)
     => (forall x y. f x -> f y -> Maybe (x :~: y)) -- ^ equality on equation tags
-    -> (forall t b. (Trans.MonadTrans t, Monad (t q)) => (forall c. f c -> t q (Code q c)) -> (f b -> t q (Code q b))) -- ^ open recursion callback
-    -> f a   -- ^ equation tag
+    -> (forall m b. Monad m => (forall c. f c -> m (Code q c)) -> (f b -> m (Code q b))) -- ^ open recursion callback
+    -> f a       -- ^ equation tag
     -> Code q a  -- ^ resulting code
 sletrecH eq f x = liftCode $ do
     (expr, bindings) <- S.runStateT (loop x) dmapEmpty
