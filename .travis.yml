@@ -8,7 +8,7 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.10.1
+# version: 0.10.2
 #
 version: ~> 1.0
 language: c
@@ -105,6 +105,7 @@ install:
     echo "packages: staged-examples" >> cabal.project
     echo "packages: staged-streams" >> cabal.project
     echo "packages: staged-streams-resourcet" >> cabal.project
+    echo "packages: staged-kleene" >> cabal.project
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-commons' >> cabal.project ; fi
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-examples' >> cabal.project ; fi
@@ -113,14 +114,17 @@ install:
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-streams-resourcet' >> cabal.project ; fi
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
+  - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-kleene' >> cabal.project ; fi
+  - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - |
-  - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
+  - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
   - cat cabal.project || true
   - cat cabal.project.local || true
   - if [ -f "staged-commons/configure.ac" ]; then (cd "staged-commons" && autoreconf -i); fi
   - if [ -f "staged-examples/configure.ac" ]; then (cd "staged-examples" && autoreconf -i); fi
   - if [ -f "staged-streams/configure.ac" ]; then (cd "staged-streams" && autoreconf -i); fi
   - if [ -f "staged-streams-resourcet/configure.ac" ]; then (cd "staged-streams-resourcet" && autoreconf -i); fi
+  - if [ -f "staged-kleene/configure.ac" ]; then (cd "staged-kleene" && autoreconf -i); fi
   - ${CABAL} v2-freeze $WITHCOMPILER ${TEST} ${BENCH}
   - "cat cabal.project.freeze | sed -E 's/^(constraints: *| *)//' | sed 's/any.//'"
   - rm  cabal.project.freeze
@@ -139,6 +143,7 @@ script:
   - PKGDIR_staged_examples="$(find . -maxdepth 1 -type d -regex '.*/staged-examples-[0-9.]*')"
   - PKGDIR_staged_streams="$(find . -maxdepth 1 -type d -regex '.*/staged-streams-[0-9.]*')"
   - PKGDIR_staged_streams_resourcet="$(find . -maxdepth 1 -type d -regex '.*/staged-streams-resourcet-[0-9.]*')"
+  - PKGDIR_staged_kleene="$(find . -maxdepth 1 -type d -regex '.*/staged-kleene-[0-9.]*')"
   # Generate cabal.project
   - rm -rf cabal.project cabal.project.local cabal.project.freeze
   - touch cabal.project
@@ -147,6 +152,7 @@ script:
     echo "packages: ${PKGDIR_staged_examples}" >> cabal.project
     echo "packages: ${PKGDIR_staged_streams}" >> cabal.project
     echo "packages: ${PKGDIR_staged_streams_resourcet}" >> cabal.project
+    echo "packages: ${PKGDIR_staged_kleene}" >> cabal.project
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-commons' >> cabal.project ; fi
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-examples' >> cabal.project ; fi
@@ -155,8 +161,10 @@ script:
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-streams-resourcet' >> cabal.project ; fi
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
+  - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-kleene' >> cabal.project ; fi
+  - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - |
-  - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
+  - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
   - cat cabal.project || true
   - cat cabal.project.local || true
   # Building...
@@ -172,11 +180,12 @@ script:
   - (cd ${PKGDIR_staged_examples} && ${CABAL} -vnormal check)
   - (cd ${PKGDIR_staged_streams} && ${CABAL} -vnormal check)
   - (cd ${PKGDIR_staged_streams_resourcet} && ${CABAL} -vnormal check)
+  - (cd ${PKGDIR_staged_kleene} && ${CABAL} -vnormal check)
   # haddock...
   - if [ $HCNUMVER -ge 80600 ] ; then ${CABAL} v2-haddock $WITHCOMPILER --with-haddock $HADDOCK ${TEST} ${BENCH} all ; fi
   # Building without installed constraints for packages in global-db...
   - rm -f cabal.project.local
   - ${CABAL} v2-build $WITHCOMPILER --disable-tests --disable-benchmarks all
 
-# REGENDATA ("0.10.1",["--config=cabal.haskell-ci","cabal.project"])
+# REGENDATA ("0.10.2",["--config=cabal.haskell-ci","cabal.project"])
 # EOF
