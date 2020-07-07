@@ -1,0 +1,27 @@
+cabal-version: 2.2
+name:          staged-kleene
+version:       0.1
+synopsis:      Staged regular expressions
+category:      Staged, Math
+description:
+  Regular expressions are go to example for staging programming
+
+author:        Oleg Grenrus
+maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
+license:       BSD-3-Clause
+license-file:  LICENSE
+tested-with:
+  GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.3 || ==8.10.1
+
+library
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  hs-source-dirs:   src
+  exposed-modules:  Staged.Kleene
+  build-depends:
+    , base              >=4.9     && <4.15
+    , containers        ^>=0.5.7.1 || ^>=0.6.0.1
+    , kleene            ^>=0.1
+    , lattices          ^>=2
+    , staged-commons    ^>=0.1
+    , template-haskell  >=2.11    && <2.17
