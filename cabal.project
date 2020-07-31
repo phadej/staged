@@ -16,4 +16,4 @@ package staged-examples
 source-repository-package
   type: git
   location: https://github.com/haskell-compat/th-quote.git
-  tag: 9bd3141e2e58c8d4651af5e1f57ca880bd6dfbe3
+  tag: e7a65f953c649ce8065366e3ca6098d0df6b10b0

@@ -16,6 +16,7 @@
 {-# LANGUAGE TypeOperators           #-}
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
+{-# OPTIONS_GHC -fprint-explicit-kinds -fprint-explicit-foralls #-}
 module Staged.Stream.Internal where
 
 import Data.Kind           (Constraint, Type)
@@ -319,11 +320,18 @@ gto x = GHC.to (gSumTo x id ((\y -> case y of {}) :: SOP I '[] -> (GHC.Rep a) x)
 -- (The generated code looks just horrible).
 --
 sletrec_NSNP_alt
-    :: forall xss b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
+    :: forall (xss :: [[Type]]) b. SListI2 xss => Fixedpoint (NS (NP C) xss -> C b)
 sletrec_NSNP_alt body args = withNSNP args $ \el f ->
-    f (sletrecH eqElem (loop id) el)
+    f (sletrecH eqElem loopid el)
   where
-    loop :: forall m yss. Monad m
+    -- because of simplified subsumption
+    loopid 
+        :: Monad m
+        => (forall c. Elem b xss c -> m (C c))
+        -> Elem b xss d -> m (C d)
+    loopid eta = loop id eta
+
+    loop :: forall m (yss :: [[Type]]). Monad m
          => (NS (NP C) yss -> NS (NP C) xss)
          -> (forall c. Elem b xss c -> m (C c))
          -> (forall d. Elem b yss d -> m (C d))

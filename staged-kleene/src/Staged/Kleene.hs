@@ -13,12 +13,12 @@ import Staged.Commons
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-compileRE :: Quote q => RE Char -> Code q ([Char] -> Bool)
+compileRE :: RE Char -> Code Q ([Char] -> Bool)
 compileRE re = sletrec aux re
 
-aux :: forall q m. (Quote q, Monad m)
-    => (RE Char -> m (Code q ([Char] -> Bool)))
-    -> (RE Char -> m (Code q ([Char] -> Bool)))
+aux :: forall m. Monad m
+    => (RE Char -> m (Code Q ([Char] -> Bool)))
+    -> (RE Char -> m (Code Q ([Char] -> Bool)))
 aux _   re
     | isEmpty re
     = return $ fromFn $ \_ -> sfalse
@@ -27,7 +27,7 @@ aux rec re = do
         re' <- rec (derivate c re)
         return (c, re')
 
-    let next :: Char -> Code q [Char] -> Code q Bool
+    let next :: Char -> Code Q [Char] -> Code Q Bool
         next c xs = case Map.lookup c next' of
             Nothing -> sfalse
             Just k  -> k @@ xs
@@ -39,12 +39,12 @@ aux rec re = do
     lc = leadingChars re
 
 partitionCase
-    :: forall q r. Quote q
-    => Partition Char
-    -> (Char -> Code q r)
-    -> (Code q Char -> Code q r)
+    :: forall r.
+       Partition Char
+    -> (Char -> Code Q r)
+    -> (Code Q Char -> Code Q r)
 partitionCase p k c = go (Set.toList $ examples p) where
-    go :: [Char] -> Code q r
+    go :: [Char] -> Code Q r
     go []  = error "empty examples"
     go [x] = k x
     go (x:xs) = sIfThenElse (toCode [|| $$(fromCode c) <= x ||])
