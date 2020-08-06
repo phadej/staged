@@ -127,7 +127,7 @@ test-suite qc
 
   -- test dependencies
   build-depends:
-    , QuickCheck        ^>=2.13.2
+    , QuickCheck        ^>=2.14.1
     , tasty             ^>=1.2.3
     , tasty-quickcheck  ^>=0.10.1
 
@@ -158,7 +158,7 @@ test-suite families
 
   -- test dependencies
   build-depends:
-    , QuickCheck            ^>=2.13.2
+    , QuickCheck            ^>=2.14.1
     , quickcheck-instances  ^>=0.3.22
     , tasty                 ^>=1.2.3
     , tasty-quickcheck      ^>=0.10.1

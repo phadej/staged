@@ -1,9 +1,10 @@
 {-# LANGUAGE CPP                    #-}
+{-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE UndecidableInstances   #-}
 #if __GLASGOW_HASKELL__ >=811
 {-# LANGUAGE TemplateHaskellQuotes  #-}
@@ -30,40 +31,27 @@ module Staged.Compat (
     -- * GHC Splice
     GHCCode,
     IsCode (..),
+    fromSplice,
 ) where
 
-import Data.String                (IsString (..))
-import Language.Haskell.TH        (Q)
-import Language.Haskell.TH.Lib    (TExpQ)
+import Data.Kind               (Type)
+import Data.String             (IsString (..))
+import Language.Haskell.TH     (Q)
+import Language.Haskell.TH.Lib (TExpQ)
 
-#if MIN_VERSION_template_haskell(2,17,0)
-import Language.Haskell.TH        (Code (..), CodeQ)
-import Language.Haskell.TH.Syntax
-       (bindCode, bindCode_, joinCode, liftCode, liftTypedQuote, unTypeCode,
-       unsafeCodeCoerce, Quote)
-#else
-import Language.Haskell.TH.Syntax (unsafeTExpCoerce)
-#endif
+import Language.Haskell.TH.Syntax.Compat
+       (Code (..), CodeQ, IsCode (..), Quote (..), bindCode, bindCode_,
+       joinCode, liftCode, unTypeCode, unsafeCodeCoerce)
 
-import qualified Control.Monad.Trans.Class  as Trans
-import qualified Language.Haskell.TH.Syntax as TH
-
-import Language.Haskell.TH.Syntax.Compat (Code (..), CodeQ, unsafeCodeCoerce, unTypeCode, joinCode, bindCode, bindCode_, liftCode, IsCode (..))
+import qualified Control.Monad.Trans.Class         as Trans
+import qualified Language.Haskell.TH.Syntax        as TH
+import qualified Language.Haskell.TH.Syntax.Compat as Compat
 
 -- | Short alias for @'Code' 'Q'@
 type C = CodeQ
 
-#if MIN_VERSION_template_haskell(2,17,0)
-#else
-type Quote q = q ~ Q
-#endif
-
 liftTyped :: (TH.Lift a, Quote q) => a -> Code q a
-#if MIN_VERSION_template_haskell(2,16,0)
-liftTyped = Code . TH.liftTyped
-#else
-liftTyped = Code . unsafeTExpCoerce . TH.lift
-#endif
+liftTyped = Compat.liftTypedQuote
 
 -------------------------------------------------------------------------------
 -- Conversions
@@ -80,18 +68,38 @@ transCode (Code x) = Code (Trans.lift x)
 -- Questionable instances
 -------------------------------------------------------------------------------
 
-instance (TH.Lift a, Quote q, Num a) => Num (Code q a) where
+instance (TH.Lift a, Compat.Quote q, Num a) => Num (Code q a) where
     fromInteger x = liftTyped (fromInteger x)
 
-    x + y = toCode [|| $$(fromCode x) + $$(fromCode y) ||]
-    x - y = toCode [|| $$(fromCode x) - $$(fromCode y) ||]
-    x * y = toCode [|| $$(fromCode x) * $$(fromCode y) ||]
+#if MIN_VERSION_template_haskell(2,17,0)
+    x + y = [|| $$x + $$y ||]
+    x - y = [|| $$x - $$y ||]
+    x * y = [|| $$x * $$y ||]
 
-    abs    x = toCode [|| abs $$(fromCode x) ||]
-    negate x = toCode [|| negate $$(fromCode x) ||]
-    signum x = toCode [|| signum $$(fromCode x) ||]
+    abs    x = [|| abs $$x ||]
+    negate x = [|| negate $$x ||]
+    signum x = [|| signum $$x ||]
+#else
+    x + y = unsafeCodeCoerce $ fun <$> unTypeCode x <*> unTypeCode y where
+        fun x' y' = TH.VarE '(+) `TH.AppE` x' `TH.AppE` y'
 
-instance (TH.Lift a, Quote q, IsString a) => IsString (Code q a) where
+    x - y = unsafeCodeCoerce $ fun <$> unTypeCode x <*> unTypeCode y where
+        fun x' y' = TH.VarE '(-) `TH.AppE` x' `TH.AppE` y'
+
+    x * y = unsafeCodeCoerce $ fun <$> unTypeCode x <*> unTypeCode y where
+        fun x' y' = TH.VarE '(*) `TH.AppE` x' `TH.AppE` y'
+
+    abs x = unsafeCodeCoerce $ fun <$> unTypeCode x where
+        fun x' = TH.VarE 'abs `TH.AppE` x'
+
+    negate x = unsafeCodeCoerce $ fun <$> unTypeCode x where
+        fun x' = TH.VarE 'negate `TH.AppE` x'
+
+    signum x = unsafeCodeCoerce $ fun <$> unTypeCode x where
+        fun x' = TH.VarE 'signum `TH.AppE` x'
+#endif
+
+instance (TH.Lift a, Compat.Quote q, IsString a) => IsString (Code q a) where
     fromString  = liftTyped . fromString
 
 -------------------------------------------------------------------------------
@@ -102,6 +110,15 @@ instance (TH.Lift a, Quote q, IsString a) => IsString (Code q a) where
 -- In some future GHC version it might be 'Code', but not yet.
 #if MIN_VERSION_template_haskell(2,17,0)
 type GHCCode a = Code Q a
+type FromTypedSplice q a = Code q a
 #else
 type GHCCode a = TExpQ a
+type FromTypedSplice (q :: Type -> Type) a = TExpQ a
+#endif
+
+fromSplice :: Compat.Quote q => FromTypedSplice q a -> Code q a
+#if MIN_VERSION_template_haskell(2,17,0)
+fromSplice = id
+#else
+fromSplice = Code . Compat.unsafeQToQuote
 #endif
