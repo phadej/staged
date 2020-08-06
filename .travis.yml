@@ -117,6 +117,10 @@ install:
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-kleene' >> cabal.project ; fi
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - |
+    echo "source-repository-package"                                  >> cabal.project
+    echo "  type:     git"                                            >> cabal.project
+    echo "  location: https://github.com/haskell-compat/th-quote.git" >> cabal.project
+    echo "  tag:      9bd3141e2e58c8d4651af5e1f57ca880bd6dfbe3"       >> cabal.project
   - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
   - cat cabal.project || true
   - cat cabal.project.local || true
@@ -164,6 +168,10 @@ script:
   - if [ $HCNUMVER -ge 80200 ] ; then echo 'package staged-kleene' >> cabal.project ; fi
   - "if [ $HCNUMVER -ge 80200 ] ; then echo '  ghc-options: -Werror=missing-methods' >> cabal.project ; fi"
   - |
+    echo "source-repository-package"                                  >> cabal.project
+    echo "  type:     git"                                            >> cabal.project
+    echo "  location: https://github.com/haskell-compat/th-quote.git" >> cabal.project
+    echo "  tag:      9bd3141e2e58c8d4651af5e1f57ca880bd6dfbe3"       >> cabal.project
   - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
   - cat cabal.project || true
   - cat cabal.project.local || true
