@@ -414,10 +414,10 @@ filterPipe p =  MkStream (\a -> SOP (Z (C a :* Nil))) step where
 -- |
 --
 -- @
--- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> 'Stream' a b -> GHCCode r
+-- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> 'Stream' a b -> SpliceQ r
 -- @
 foldl :: forall r a b fn init start. (IsCode Q r init, IsCode Q a start, ToCodeFn2 Q r b r fn)
-    => fn -> init -> start -> Stream a b -> GHCCode r
+    => fn -> init -> start -> Stream a b -> SpliceQ r
 foldl op e z (MkStream xs steps0) =
     fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
   where
@@ -433,11 +433,11 @@ foldl op e z (MkStream xs steps0) =
 -- |
 --
 -- @
--- 'toList' :: C a -> 'Stream' a b -> GHCCode [b]
+-- 'toList' :: C a -> 'Stream' a b -> SpliceQ [b]
 -- @
 toList
     :: forall start a b. (IsCode Q a start)
-    => start -> Stream a b -> GHCCode [b]
+    => start -> Stream a b -> SpliceQ [b]
 toList a (MkStream start steps0) =
     fromCode $ sletrec_SOP (body steps0) (start (toCode a))
   where

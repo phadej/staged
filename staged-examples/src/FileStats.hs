@@ -37,6 +37,6 @@ staged = do
         >>> S.unfold id (\bs k -> smaybe ([|| BS.uncons ||] @@ bs)
               (k Nothing)
               (\p -> spairElim p $ \x y -> k (Just (x, y))))
-        :: GHCCode (R.ResourceT IO Int))
+        :: SpliceQ (R.ResourceT IO Int))
 
     print x

@@ -29,18 +29,17 @@ module Staged.Compat (
     -- * Transformers
     transCode,
     -- * GHC Splice
-    GHCCode,
+    Splice, SpliceQ,
     IsCode (..),
     fromSplice,
 ) where
 
-import Data.Kind               (Type)
 import Data.String             (IsString (..))
 import Language.Haskell.TH     (Q)
 import Language.Haskell.TH.Lib (TExpQ)
 
 import Language.Haskell.TH.Syntax.Compat
-       (Code (..), CodeQ, IsCode (..), Quote (..), bindCode, bindCode_,
+       (Code (..), CodeQ, IsCode (..), Quote (..), bindCode, bindCode_, SpliceQ, Splice,
        joinCode, liftCode, unTypeCode, unsafeCodeCoerce)
 
 import qualified Control.Monad.Trans.Class         as Trans
@@ -68,6 +67,7 @@ transCode (Code x) = Code (Trans.lift x)
 -- Questionable instances
 -------------------------------------------------------------------------------
 
+{-
 instance (TH.Lift a, Compat.Quote q, Num a) => Num (Code q a) where
     fromInteger x = liftTyped (fromInteger x)
 
@@ -101,24 +101,17 @@ instance (TH.Lift a, Compat.Quote q, Num a) => Num (Code q a) where
 
 instance (TH.Lift a, Compat.Quote q, IsString a) => IsString (Code q a) where
     fromString  = liftTyped . fromString
+-}
 
 -------------------------------------------------------------------------------
 -- GHC Splice
 -------------------------------------------------------------------------------
 
--- | A type of GHC typed splices.
--- In some future GHC version it might be 'Code', but not yet.
+-- | Use carefully. The type depends on @template-haskell@ / GHC version.
 #if MIN_VERSION_template_haskell(2,17,0)
-type GHCCode a = Code Q a
-type FromTypedSplice q a = Code q a
-#else
-type GHCCode a = TExpQ a
-type FromTypedSplice (q :: Type -> Type) a = TExpQ a
-#endif
-
-fromSplice :: Compat.Quote q => FromTypedSplice q a -> Code q a
-#if MIN_VERSION_template_haskell(2,17,0)
+fromSplice :: Compat.Quote q => Splice q a -> Code q a
 fromSplice = id
 #else
+fromSplice :: Compat.Quote q => SpliceQ a -> Code q a
 fromSplice = Code . Compat.unsafeQToQuote
 #endif

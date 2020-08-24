@@ -27,7 +27,7 @@ module Staged.Commons (
     -- * Transformers
     transCode,
     -- * GHC Code
-    GHCCode,
+    Splice, SpliceQ,
     IsCode (..),
     -- * Constructors
     sapply,
