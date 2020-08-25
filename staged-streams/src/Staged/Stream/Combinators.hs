@@ -583,10 +583,10 @@ filterPipe p = mkStreamM Just step where
 -- |
 --
 -- @
--- 'run' :: C a -> 'StreamM' m a b -> GHCCode (m ())
+-- 'run' :: C a -> 'StreamM' m a b -> SpliceQ (m ())
 -- @
 run :: forall a b m ca. (Monad m, IsCode Q a ca)
-    => ca -> StreamM m a b -> GHCCode (m ())
+    => ca -> StreamM m a b -> SpliceQ (m ())
 run z (MkStreamM start steps0) =
     fromCode $ sletrec_SOP (body steps0) (start (toCode z))
   where
@@ -602,10 +602,10 @@ run z (MkStreamM start steps0) =
 -- |
 --
 -- @
--- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> StreamM m a b -> GHCCode (m r)
+-- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> StreamM m a b -> SpliceQ (m r)
 -- @
 foldl :: forall r a b m fn init start. (Monad m, IsCode Q r init, IsCode Q a start, ToCodeFn2 Q r b r fn)
-      => fn -> init -> start -> StreamM m a b -> GHCCode (m r)
+      => fn -> init -> start -> StreamM m a b -> SpliceQ (m r)
 foldl op e z (MkStreamM xs steps0) =
     fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
   where
@@ -621,11 +621,11 @@ foldl op e z (MkStreamM xs steps0) =
 -- |
 --
 -- @
--- 'foldlM' :: (C r -> C b -> C (m r)) -> C r -> C a -> StreamM m a b -> GHCCode (m r)
+-- 'foldlM' :: (C r -> C b -> C (m r)) -> C r -> C a -> StreamM m a b -> SpliceQ (m r)
 -- @
 foldlM
     :: forall r a b m fn init start. (Monad m, IsCode Q r init, IsCode Q a start, ToCodeFn2 Q r b (m r) fn)
-    => fn -> init -> start -> StreamM m a b -> GHCCode (m r)
+    => fn -> init -> start -> StreamM m a b -> SpliceQ (m r)
 foldlM op e z (MkStreamM xs steps0) =
     fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
   where
@@ -641,11 +641,11 @@ foldlM op e z (MkStreamM xs steps0) =
 -- |
 --
 -- @
--- 'toList' :: C a -> StreamM a b -> GHCCode (m [b])
+-- 'toList' :: C a -> StreamM a b -> SpliceQ (m [b])
 -- @
 toList
     :: forall a b m ca. (Monad m, IsCode Q a ca)
-    => ca -> StreamM m a b -> GHCCode (m [b])
+    => ca -> StreamM m a b -> SpliceQ (m [b])
 toList a (MkStreamM start steps0) =
     fromCode $ sletrec_SOP (body steps0) (start (toCode a))
   where

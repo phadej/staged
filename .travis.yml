@@ -8,7 +8,7 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.10.2
+# version: 0.10.3
 #
 version: ~> 1.0
 language: c
@@ -120,7 +120,7 @@ install:
     echo "source-repository-package"                                  >> cabal.project
     echo "  type:     git"                                            >> cabal.project
     echo "  location: https://github.com/haskell-compat/th-quote.git" >> cabal.project
-    echo "  tag:      e7a65f953c649ce8065366e3ca6098d0df6b10b0"       >> cabal.project
+    echo "  tag:      4438b64a29bbaae3eb618a2520d21cb76f16f8be"       >> cabal.project
   - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
   - cat cabal.project || true
   - cat cabal.project.local || true
@@ -171,7 +171,7 @@ script:
     echo "source-repository-package"                                  >> cabal.project
     echo "  type:     git"                                            >> cabal.project
     echo "  location: https://github.com/haskell-compat/th-quote.git" >> cabal.project
-    echo "  tag:      e7a65f953c649ce8065366e3ca6098d0df6b10b0"       >> cabal.project
+    echo "  tag:      4438b64a29bbaae3eb618a2520d21cb76f16f8be"       >> cabal.project
   - "for pkg in $($HCPKG list --simple-output); do echo $pkg | sed 's/-[^-]*$//' | (grep -vE -- '^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$' || true) | sed 's/^/constraints: /' | sed 's/$/ installed/' >> cabal.project.local; done"
   - cat cabal.project || true
   - cat cabal.project.local || true
@@ -195,5 +195,5 @@ script:
   - rm -f cabal.project.local
   - ${CABAL} v2-build $WITHCOMPILER --disable-tests --disable-benchmarks all
 
-# REGENDATA ("0.10.2",["--config=cabal.haskell-ci","cabal.project"])
+# REGENDATA ("0.10.3",["--config=cabal.haskell-ci","cabal.project"])
 # EOF
