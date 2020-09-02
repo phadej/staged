@@ -1,0 +1,49 @@
+cabal-version: 2.2
+name:          staged-gg
+version:       0.1
+synopsis:      GHC.Generics style staged generics
+category:      Staged, Generics
+description:   GHC.Generics style staged generics...
+author:        Oleg Grenrus, Andres Löh
+maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
+license:       BSD-3-Clause
+license-file:  LICENSE
+tested-with:   GHC ==9.0.1
+
+source-repository head
+  type:     git
+  location: https://github.com/phadej/staged.git
+  subdir:   staged-gg
+
+library
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  hs-source-dirs:   src
+
+  -- ghc-boot dependencies
+  build-depends:
+    , base              ^>=4.15
+    , containers        ^>=0.6.0.1
+    , template-haskell  ^>=2.17
+
+  build-depends:
+    , generic-deriving  ^>=1.13.1
+    , th-abstraction    ^>=0.3.2.0
+    , th-lift           ^>=0.8.1
+
+  -- staged generics
+  exposed-modules:
+    Staged.GHC.Generics
+    Staged.GHC.Generics.Examples
+    Staged.GHC.Generics.Examples.Foo
+    Staged.GHC.Generics.Examples.Functor
+    Staged.GHC.Generics.Examples.Monoid
+    Staged.GHC.Generics.Instances
+    Staged.GHC.Generics.TH
+    Staged.GHC.Generics.Types
+
+  other-modules:
+    Generics.Deriving.TH.Internal
+    Generics.Deriving.TH.Post4_9
+    Staged.GHC.Generics.Internal
+    Staged.GHC.Generics.TH.Names

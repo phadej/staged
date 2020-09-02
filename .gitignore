@@ -1,6 +1,6 @@
 dist/
 dist-newstyle/
 .ghc.environment.*
-cabal.project.local
+*.project.local
 *.agdai
 dump-core
