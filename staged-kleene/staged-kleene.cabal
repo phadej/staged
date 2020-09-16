@@ -17,11 +17,28 @@ library
   default-language: Haskell2010
   ghc-options:      -Wall
   hs-source-dirs:   src
-  exposed-modules:  Staged.Kleene
+  exposed-modules:
+    Kleene.RE.NonEps
+    Staged.Kleene
+
   build-depends:
     , base              >=4.9     && <4.15
     , containers        ^>=0.5.7.1 || ^>=0.6.0.1
     , kleene            ^>=0.1
     , lattices          ^>=2
+    , range-set-list    ^>=0.1.3
     , staged-commons    ^>=0.1
     , template-haskell  >=2.11    && <2.17
+
+test-suite staged-kleene-tests
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  main-is:          Tests.hs
+  ghc-options:      -Wall
+  hs-source-dirs:   tests
+  build-depends:
+    , base
+    , kleene
+    , staged-kleene
+    , tasty
+    , tasty-quickcheck
