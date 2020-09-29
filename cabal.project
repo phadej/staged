@@ -12,8 +12,3 @@ package staged-streams
 
 package staged-examples
   optimization: 2
-
-source-repository-package
-  type: git
-  location: https://github.com/haskell-compat/th-quote.git
-  tag: 4438b64a29bbaae3eb618a2520d21cb76f16f8be
