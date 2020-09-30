@@ -31,8 +31,7 @@ library
     , transformers      ^>=0.5.2.0
 
   -- other dependencies
-  build-depends:
-    , th-compat
+  build-depends:    th-compat ^>=0.1
 
   -- commons for staged programming
   exposed-modules:
@@ -48,7 +47,7 @@ test-suite staged-commons-example
   other-modules:    Examples
   build-depends:
     , base
+    , containers
     , staged-commons
     , template-haskell
     , transformers
-    , containers
