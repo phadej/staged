@@ -3,7 +3,6 @@ packages: staged-examples
 packages: staged-streams
 packages: staged-streams-resourcet
 packages: staged-kleene
--- packages: staged-gg
 
 tests: True
 
