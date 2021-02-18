@@ -42,10 +42,10 @@ library
 
   -- ghc-boot dependencies
   build-depends:
-    , base              >=4.9     && <4.15
+    , base              >=4.9     && <4.16
     , directory         ^>=1.3.0.0
     , filepath          ^>=1.4.1.1
-    , template-haskell  >=2.11    && <2.17
+    , template-haskell  >=2.11    && <2.18
     , transformers      ^>=0.5.2.0
 
   -- other dependencies

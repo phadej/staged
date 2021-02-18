@@ -19,9 +19,9 @@ library
   hs-source-dirs:   src
   exposed-modules:  Staged.Kleene
   build-depends:
-    , base              >=4.9     && <4.15
+    , base              >=4.9     && <4.16
     , containers        ^>=0.5.7.1 || ^>=0.6.0.1
     , kleene            ^>=0.1
     , lattices          ^>=2
     , staged-commons    ^>=0.1
-    , template-haskell  >=2.11    && <2.17
+    , template-haskell  >=2.11    && <2.18
