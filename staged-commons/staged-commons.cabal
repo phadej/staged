@@ -25,9 +25,9 @@ library
 
   -- ghc-boot dependencies
   build-depends:
-    , base              >=4.9     && <4.15
+    , base              >=4.9     && <4.16
     , containers        ^>=0.5.7.1 || ^>=0.6.0.1
-    , template-haskell  >=2.11    && <2.17
+    , template-haskell  >=2.11    && <2.18
     , transformers      ^>=0.5.2.0
 
   -- other dependencies
