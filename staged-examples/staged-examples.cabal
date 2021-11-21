@@ -9,22 +9,28 @@ maintainer:    Oleg Grenrus
 license:       BSD-3-Clause
 license-file:  LICENSE
 tested-with:
-  GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.4 || ==8.10.4 || ==9.0.1
+  GHC ==8.0.2
+   || ==8.2.2
+   || ==8.4.4
+   || ==8.6.5
+   || ==8.8.4
+   || ==8.10.4
+   || ==9.0.1
 
 executable file-stats-conduit
   default-language: Haskell2010
-  ghc-options:      -Wall -rtsopts
+  ghc-options:      -Wall -rtsopts -threaded
   hs-source-dirs:   src
   main-is:          FileStatsConduit.hs
   build-depends:
-    , base        >=0       && <5
+    , base        <5
     , bytestring
     , conduit     ^>=1.3.1.2
     , resourcet
 
 executable file-stats-conduit-no-retry
   default-language: Haskell2010
-  ghc-options:      -Wall -rtsopts
+  ghc-options:      -Wall -rtsopts -threaded
   hs-source-dirs:   src
   main-is:          FileStatsConduitNoRetry.hs
   build-depends:
@@ -38,7 +44,7 @@ executable file-stats-conduit-no-retry
 
 executable file-stats
   default-language: Haskell2010
-  ghc-options:      -Wall -rtsopts
+  ghc-options:      -Wall -rtsopts -threaded
   hs-source-dirs:   src
   main-is:          FileStats.hs
   build-depends:
@@ -49,5 +55,23 @@ executable file-stats
     , staged-streams
     , staged-streams-resourcet
 
--- build-depends: dump-core
--- ghc-options: -fplugin=DumpCore
+executable utf8-decode
+  default-language: Haskell2010
+  ghc-options:      -Wall -rtsopts -threaded -fmax-refinement-hole-fits=0
+  hs-source-dirs:   src
+  main-is:          utf8-decode.hs
+  build-depends:
+    , base
+    , bytestring
+    , QuickCheck
+    , sop-core
+    , staged-streams
+    , utf8-string
+
+  other-modules:
+    UTF8
+    UTF8.States
+    UTF8.Stream
+
+  if !impl(ghc >= 9)
+    buildable: False

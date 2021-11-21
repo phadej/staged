@@ -5,7 +5,7 @@
 module Staged.Stream.States where
 
 import Data.Proxy     (Proxy (..))
-import Data.SOP   (SListI2, SOP (..))
+import Data.SOP       (SListI2, SOP (..))
 import Staged.Commons (C)
 
 import qualified GHC.Generics as GHC
