@@ -60,6 +60,13 @@ library
     Staged.Stream.Step
     Staged.Stream.Type
 
+  -- staged stream fusion: fallible monadic
+    Staged.Stream.Fallible
+    Staged.Stream.Fallible.Combinators
+    Staged.Stream.Fallible.Convenience
+    Staged.Stream.Fallible.Type
+    Staged.Stream.Fallible.Step
+
   -- staged stream fusion: pure
   exposed-modules:
     Staged.Stream.Pure
