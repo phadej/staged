@@ -15,12 +15,12 @@ import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Internal as BS
 import qualified Staged.Stream.Fallible   as S
 
-withUnpackedByteString :: C BS.ByteString -> (S.StreamFM IO () Word8 -> C (IO r)) -> C (IO r)
+withUnpackedByteString :: C BS.ByteString -> (C Int -> S.StreamFM IO () Word8 -> C (IO r)) -> C (IO r)
 withUnpackedByteString bs k =
     [|| case $$bs of
          BS.PS fptr off len -> withForeignPtr (plusForeignPtr fptr off) $ \begin -> do
             let end = plusPtr begin len
-            $$(k (foreachPtr [|| begin ||] [|| end ||]))
+            $$(k [|| len||] (foreachPtr [|| begin ||] [|| end ||]))
      ||]
 
 foreachPtr :: C (Ptr Word8) -> C (Ptr Word8) -> S.StreamFM IO () Word8

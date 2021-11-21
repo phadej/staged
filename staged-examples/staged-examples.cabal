@@ -63,6 +63,7 @@ executable utf8-decode
   build-depends:
     , base
     , bytestring
+    , primitive
     , QuickCheck
     , sop-core
     , staged-streams
@@ -73,6 +74,7 @@ executable utf8-decode
     Unicode
     Unicode.ByteString.Source
     Unicode.Types
+    Unicode.UTF16.Encoder
     Unicode.UTF8.Decoder
 
   if !impl(ghc >=9)

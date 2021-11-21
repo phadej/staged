@@ -20,31 +20,31 @@ w8w32 :: C Word8 -> C Word32
 w8w32 x = [|| fromIntegral $$x :: Word32 ||]
 
 byte2 :: C Word8 -> C Word32
-byte2 x = [|| shiftL (fromIntegral ($$x .&. 0x3f)) 6 ||]
+byte2 x = [|| shiftL (fromIntegral ($$x .&. 0x3f)) 6 :: Word32 ||]
 
 byte2end :: C Word32 -> C Word8 -> C Word32
-byte2end y x = [|| $$y .|. fromIntegral ($$x .&. 0x3f) ||]
+byte2end y x = [|| $$y .|. fromIntegral ($$x .&. 0x3f) :: Word32 ||]
 
 byte3a :: C Word8 -> C Word32
-byte3a x = [|| shiftL (fromIntegral ($$x .&. 0x0f)) 12 ||]
+byte3a x = [|| shiftL (fromIntegral ($$x .&. 0x0f)) 12 :: Word32 ||]
 
 byte3b :: C Word32 -> C Word8 -> C Word32
-byte3b y x = [|| $$y .|. shiftL (fromIntegral ($$x .&. 0x3f)) 6 ||]
+byte3b y x = [|| $$y .|. shiftL (fromIntegral ($$x .&. 0x3f)) 6 :: Word32 ||]
 
 byte3end :: C Word32 -> C Word8 -> C Word32
-byte3end y x = [|| $$y .|. fromIntegral ($$x .&. 0x3f) ||]
+byte3end y x = [|| $$y .|. fromIntegral ($$x .&. 0x3f) :: Word32 ||]
 
 byte4a :: C Word8 -> C Word32
-byte4a x = [|| shiftL (fromIntegral ($$x .&. 0x07)) 18 ||]
+byte4a x = [|| shiftL (fromIntegral ($$x .&. 0x07)) 18 :: Word32 ||]
 
 byte4b :: C Word32 -> C Word8 -> C Word32
-byte4b y x = [|| $$y .|. shiftL (fromIntegral ($$x .&. 0x3f)) 12 ||]
+byte4b y x = [|| $$y .|. shiftL (fromIntegral ($$x .&. 0x3f)) 12 :: Word32 ||]
 
 byte4c :: C Word32 -> C Word8 -> C Word32
-byte4c y x = [|| $$y .|. shiftL (fromIntegral ($$x .&. 0x3f)) 6 ||]
+byte4c y x = [|| $$y .|. shiftL (fromIntegral ($$x .&. 0x3f)) 6 :: Word32 ||]
 
 byte4end :: C Word32 -> C Word8 -> C Word32
-byte4end y x = [|| $$y .|. fromIntegral ($$x .&. 0x3f) ||]
+byte4end y x = [|| $$y .|. fromIntegral ($$x .&. 0x3f) :: Word32 ||]
 
 utf8decoder :: S.StreamFM m a Word8 -> S.StreamFM m a Word32
 utf8decoder (S.MkStreamFM s0 steps0) = S.mkStreamFM (Start . s0) (go steps0) where
