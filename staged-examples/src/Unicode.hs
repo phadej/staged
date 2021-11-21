@@ -1,20 +1,26 @@
 {-# LANGUAGE TemplateHaskell #-}
--- {-# OPTIONS_GHC -ddump-splices #-}
+{-# OPTIONS_GHC -ddump-splices #-}
 module Unicode (
     fromUTF8BS,
-    toWord16,
+    textFromUTF8BS,
 ) where
 
 import Data.Char        (chr)
-import Data.Word        (Word32, Word16)
+import Data.Word        (Word16, Word32)
 import System.IO.Unsafe (unsafePerformIO)
 
-import qualified Data.ByteString        as BS
-import qualified Staged.Stream.Fallible as S
+import Staged.Commons
+
+import qualified Data.Primitive          as P
+import qualified Data.ByteString         as BS
+import qualified Staged.Stream.Fallible  as S
+import qualified Data.Text.Array      as T
+import qualified Data.Text.Internal   as T
 
 import Unicode.ByteString.Source
-import Unicode.UTF8.Decoder
 import Unicode.UTF16.Encoder
+import Unicode.UTF8.Decoder
+import Unicode.PrimArray.Sink
 
 -- for prettier splice
 import Data.Bits          (shiftL, (.&.), (.|.))
@@ -33,12 +39,11 @@ fromUTF8BS bs = unsafePerformIO $
     invalidUtf8 :: IO String
     invalidUtf8 = fail "Invalid UTF8"
 
-toWord16 :: BS.ByteString -> [Word16]
-toWord16 bs = unsafePerformIO $
-    $$(withUnpackedByteString [|| bs ||] $ \_len w8s ->
-          S.toList [|| invalidUtf8 ||] [|| () ||]
-        $ utf16encoder
-        $ utf8decoder w8s)
+textFromUTF8BS :: BS.ByteString -> T.Text
+textFromUTF8BS bs = unsafePerformIO $
+    $$(withUnpackedByteString [|| bs ||] $ \len w8s ->
+       sinkPrimArray [|| invalidUtf8 ||] len [|| () ||] (utf16encoder $ utf8decoder w8s) $ \len' p ->
+       sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.Array ba) 0 $$len' ||])
   where
-    invalidUtf8 :: IO [Word16]
+    invalidUtf8 :: IO T.Text
     invalidUtf8 = fail "Invalid UTF8"

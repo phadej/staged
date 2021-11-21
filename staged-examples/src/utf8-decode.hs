@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Data.Word       (Word8, Word16)
+import Data.Word       (Word8)
 import Test.QuickCheck
        (Property, counterexample, label, maxSuccess, quickCheck, quickCheckWith,
        stdArgs, (===))
@@ -10,9 +10,6 @@ import Unicode
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.Text            as T
-import qualified Data.Text.Array      as T
-import qualified Data.Text.Internal   as T
-import qualified Data.Primitive.PrimArray as P
 
 test :: String -> IO ()
 test s = do
@@ -34,13 +31,9 @@ _prop2 w8s = label (if elem '\xfffd' rhs  then "Repl" else "NoRepl") $ rhs === l
 
 prop3 :: String -> Property
 prop3 s = counterexample (show $ BS.unpack bs) $
-    textWord16 (T.pack s) === toWord16 bs
+    T.pack s === textFromUTF8BS bs
   where
     bs = UTF8.fromString s
-
-textWord16 :: T.Text -> [Word16]
-textWord16 (T.Text (T.Array ba) off len) =
-    take len $ drop off $ P.primArrayToList (P.PrimArray ba)
 
 main :: IO ()
 main = do
