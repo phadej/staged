@@ -71,6 +71,7 @@ executable utf8-decode
 
   other-modules:
     Unicode
+    Unicode.ByteString.Source
     Unicode.Types
     Unicode.UTF8.Decoder
 
