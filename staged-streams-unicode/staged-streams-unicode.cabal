@@ -49,16 +49,30 @@ executable utf8-decode
 test-suite json-tests
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
-  hs-source-dirs:   tests
+  hs-source-dirs:   tests common
   main-is:          json-tests.hs
-  other-modules: UnescapePure
+  other-modules:    UnescapePure
   build-depends:
     , base
     , bytestring
     , QuickCheck
     , staged-streams
     , staged-streams-unicode
-    , text
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+    , text
+
+benchmark json-bench
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench common
+  main-is:          json-bench.hs
+  other-modules:    UnescapePure
+  build-depends:
+    , base
+    , bytestring
+    , criterion
+    , staged-streams
+    , staged-streams-unicode
+    , text
