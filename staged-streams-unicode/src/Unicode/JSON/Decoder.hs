@@ -24,6 +24,27 @@ sword32 :: Word32 -> C Word32
 sword32 w32 = [|| $$(liftTyped w32) :: Word32 ||]
 
 -------------------------------------------------------------------------------
+-- Hex
+-------------------------------------------------------------------------------
+
+{-
+decodeHex :: Word8 -> Word16
+decodeHex x
+    | 48 <= x && x <=  57 = fromIntegral x - 48  -- 0-9
+    | 65 <= x && x <=  70 = fromIntegral x - 55  -- A-F
+    | 97 <= x && x <= 102 = fromIntegral x - 87  -- a-f
+    | otherwise = throwDecodeError
+-}
+
+hexDigit :: C Word8 -> C r -> (C Word8 -> C r) -> C r
+hexDigit w err k =
+    [|| if | 48 <= $$w, $$w <=  57 -> $$(k [|| $$w - 48 ||]) -- 0-9
+           | 65 <= $$w, $$w <=  70 -> $$(k [|| $$w - 55 ||]) -- A-F
+           | 97 <= $$w, $$w <= 102 -> $$(k [|| $$w - 87 ||]) -- a-f
+           | otherwise -> $$err
+     ||]
+
+-------------------------------------------------------------------------------
 -- Start
 -------------------------------------------------------------------------------
 
@@ -82,7 +103,9 @@ jsonStringDecoder (S.MkStreamFM s0 steps0) = S.mkStreamFM (Start . s0) (go steps
         Stop       -> k Stop
         Skip s'    -> k (Skip (Start s'))
         Emit w8 s' ->
-            [|| if | $$w8 <  0x20 -> $$(k Fail) -- control characters
+            -- we can omit check for control characters,
+            -- as lexer scan ensures there aren't any.
+            [|| if {- | $$w8 <  0x20 -> $$(k Fail) -- control characters -}
                    | $$w8 == 0x5c -> $$(k (Skip (Escape s')))
                    | $$w8 <  0x80 -> $$(k (Emit (w8w32 w8) (Start s')))
                    | $$w8 <  0xc0 -> $$(k Fail)
@@ -119,7 +142,7 @@ jsonStringDecoder (S.MkStreamFM s0 steps0) = S.mkStreamFM (Start . s0) (go steps
         Emit w8 s' ->
             [|| if | $$w8 .&. 0xc0 == 0x80
                    , let acc' = $$(byte3end acc w8)
-                   , acc' >= 0x800 && acc' < 0xd800 || acc' >= 0xdfff && acc' < 0xfffe
+                   , acc' >= 0x800 && acc' < 0xd800 || acc' > 0xdfff {- && acc' < 0xfffe -}
                                            -> $$(k (Emit [|| acc' ||] (Start s')))
                    | otherwise             -> $$(k Fail)
              ||]
@@ -178,9 +201,117 @@ jsonStringDecoder (S.MkStreamFM s0 steps0) = S.mkStreamFM (Start . s0) (go steps
                     0x6e -> $$(k (Emit (sword32 0x0a) (Start s'))) -- n
                     0x72 -> $$(k (Emit (sword32 0x0d) (Start s'))) -- r
                     0x74 -> $$(k (Emit (sword32 0x09) (Start s'))) -- t
-                    -- 0x75 -> _ -- u
+                    0x75 -> $$(k (Skip (EscapeU0 s')))
                     _    -> $$(k Fail)
              ||]
+
+    go steps (EscapeU0 s) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeU0 s')) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            k (Skip (EscapeU1 s' (w8w32 x)))
+
+    go steps (EscapeU1 s acc) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeU1 s' acc)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            k (Skip (EscapeU2 s' (combine x)))
+          where
+            combine :: C Word8 -> C Word32
+            combine x = [|| shiftL $$acc 4 .|. $$(w8w32 x) ||]
+    
+    go steps (EscapeU2 s acc) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeU2 s' acc)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            k (Skip (EscapeU3 s' (combine x)))
+          where
+            combine :: C Word8 -> C Word32
+            combine x = [|| shiftL $$acc 4 .|. $$(w8w32 x) ||]
+
+    go steps (EscapeU3 s acc) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeU3 s' acc)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            [|| let c = shiftL $$acc 4 .|. $$(w8w32 x)
+                 in if | c < 0xd800 || c > 0xdfff {- && c < 0xfffe -}
+                       -> $$(k (Emit [|| c ||] (Start s')))
+
+                       -- high surrogates
+                       | c < 0xdc00
+                       -> $$(k (Skip (EscapeSS s' [|| c ||])))
+
+                       | otherwise
+                       -> $$(k Fail)
+             ||]
+
+    go steps (EscapeSS s hi) k = steps s $ \case 
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeSS s' hi))
+        Emit w8 s' ->
+            [|| case $$w8 of
+                    0x5c -> $$(k (Skip (EscapeSU s' hi)))
+                    _    -> $$(k Fail)
+             ||]
+
+    go steps (EscapeSU s hi) k = steps s $ \case 
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeSS s' hi))
+        Emit w8 s' ->
+            [|| case $$w8 of
+                    0x75 -> $$(k (Skip (EscapeS0 s' hi)))
+                    _    -> $$(k Fail)
+             ||]
+
+    go steps (EscapeS0 s hi) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeS0 s' hi)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            k (Skip (EscapeS1 s' hi (w8w32 x)))
+
+    go steps (EscapeS1 s hi acc) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeS1 s' hi acc)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            k (Skip (EscapeS2 s' hi (combine x)))
+          where
+            combine :: C Word8 -> C Word32
+            combine x = [|| shiftL $$acc 4 .|. $$(w8w32 x) ||]
+    
+    go steps (EscapeS2 s hi acc) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeS2 s' hi acc)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            k (Skip (EscapeS3 s' hi (combine x)))
+          where
+            combine :: C Word8 -> C Word32
+            combine x = [|| shiftL $$acc 4 .|. $$(w8w32 x) ||]
+        
+    
+    go steps (EscapeS3 s hi acc) k = steps s $ \case
+        Fail       -> k Fail
+        Stop       -> k Fail
+        Skip s'    -> k (Skip (EscapeU3 s' acc)) 
+        Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
+            [|| let lo = shiftL $$acc 4 .|. $$(w8w32 x)
+                 in if | 0xdc00 <= lo, lo < 0xdfff
+                       -> $$(k (Emit (combine [|| lo ||]) (Start s')))
+
+                       | otherwise
+                       -> $$(k Fail)
+             ||]
+            where
+              combine :: C Word32 -> C Word32
+              combine lo = [|| 0x10000 + (shiftL ($$hi - 0xd800) 10 .|. ($$lo - 0xdc00)) ||]
 
 -------------------------------------------------------------------------------
 -- State types
@@ -195,14 +326,14 @@ data UTF8DecS xss
     | Byte4b (SOP C xss) (C Word32)
     | Byte4c (SOP C xss) (C Word32)
     | Escape (SOP C xss)                            -- ^ after @\\@
---    | EscapeU0 (SOP C xss)                          -- ^ after @\\u@
---    | EscapeU1 (SOP C xss) (C Word32)               -- ^ after @\\ux@
---    | EscapeU2 (SOP C xss) (C Word32)               -- ^ after @\\uxx@
---    | EscapeU3 (SOP C xss) (C Word32)               -- ^ after @\\uxxx@
---    | EscapeSS (SOP C xss) (C Word32)               -- ^ after @\\uxxxx@ where @xxxx@ is a high surrogate
---    | EscapeSU (SOP C xss) (C Word32)               -- ^ after @\\uxxxx\\@ ...
---    | EscapeS0 (SOP C xss) (C Word32)               -- ^ after @\\uxxxx\\u@ ...
---    | EscapeS1 (SOP C xss) (C Word32) (C Word32)    -- ^ after @\\uxxxx\\uy@ ...
---    | EscapeS2 (SOP C xss) (C Word32) (C Word32)    -- ^ after @\\uxxxx\\uyy@ ...
---    | EscapeS3 (SOP C xss) (C Word32) (C Word32)    -- ^ after @\\uxxxx\\uyyy@ ...
+    | EscapeU0 (SOP C xss)                          -- ^ after @\\u@
+    | EscapeU1 (SOP C xss) (C Word32)               -- ^ after @\\ux@
+    | EscapeU2 (SOP C xss) (C Word32)               -- ^ after @\\uxx@
+    | EscapeU3 (SOP C xss) (C Word32)               -- ^ after @\\uxxx@
+    | EscapeSS (SOP C xss) (C Word32)               -- ^ after @\\uxxxx@ where @xxxx@ is a high surrogate
+    | EscapeSU (SOP C xss) (C Word32)               -- ^ after @\\uxxxx\\@ ...
+    | EscapeS0 (SOP C xss) (C Word32)               -- ^ after @\\uxxxx\\u@ ...
+    | EscapeS1 (SOP C xss) (C Word32) (C Word32)    -- ^ after @\\uxxxx\\uy@ ...
+    | EscapeS2 (SOP C xss) (C Word32) (C Word32)    -- ^ after @\\uxxxx\\uyy@ ...
+    | EscapeS3 (SOP C xss) (C Word32) (C Word32)    -- ^ after @\\uxxxx\\uyyy@ ...
   deriving (GHC.Generic)
