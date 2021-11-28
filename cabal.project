@@ -5,6 +5,7 @@ packages: staged-examples
 packages: staged-streams
 packages: staged-streams-resourcet
 packages: staged-kleene
+packages: staged-streams-unicode
 
 tests: True
 
@@ -14,7 +15,6 @@ package staged-streams
 package staged-examples
   optimization: 2
 
-allow-newer: split-0.2.3.4:base
 allow-newer: kleene:base
 allow-newer: range-set-list:base
 allow-newer: step-function:base
