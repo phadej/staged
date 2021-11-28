@@ -38,6 +38,6 @@ escapeBench = bgroup "Escape"
   where
     example :: String -> BS.ByteString -> Benchmark
     example name input = bgroup name
-      [ bench "staged" $ whnf unescapeText_staged input
-      , bench "aeson"  $ whnf unescapeText_aeson input
+      [ bench "staged" $ nf unescapeText_staged input
+      , bench "aeson"  $ nf unescapeText_aeson input
       ]
