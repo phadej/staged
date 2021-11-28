@@ -54,29 +54,3 @@ executable file-stats
     , resourcet
     , staged-streams
     , staged-streams-resourcet
-
-executable utf8-decode
-  default-language: Haskell2010
-  ghc-options:      -Wall -rtsopts -threaded -fmax-refinement-hole-fits=0
-  hs-source-dirs:   src
-  main-is:          utf8-decode.hs
-  build-depends:
-    , base
-    , bytestring
-    , primitive
-    , QuickCheck
-    , sop-core
-    , staged-streams
-    , text
-    , utf8-string
-
-  other-modules:
-    Unicode
-    Unicode.ByteString.Source
-    Unicode.PrimArray.Sink
-    Unicode.Types
-    Unicode.UTF16.Encoder
-    Unicode.UTF8.Decoder
-
-  if !impl(ghc >=9)
-    buildable: False

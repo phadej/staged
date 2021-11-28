@@ -1,2 +1,3 @@
-branches: master
-haddock: >=8.6
+branches:       master
+jobs-selection: any
+haddock:        >=8.6

@@ -8,9 +8,9 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.12
+# version: 0.13.20211116
 #
-# REGENDATA ("0.12",["github","cabal.project"])
+# REGENDATA ("0.13.20211116",["github","cabal.project"])
 #
 name: Haskell-CI
 on:
@@ -24,6 +24,8 @@ jobs:
   linux:
     name: Haskell-CI - Linux - ${{ matrix.compiler }}
     runs-on: ubuntu-18.04
+    timeout-minutes:
+      60
     container:
       image: buildpack-deps:bionic
     continue-on-error: ${{ matrix.allow-failure }}
@@ -31,52 +33,80 @@ jobs:
       matrix:
         include:
           - compiler: ghc-9.0.1
+            compilerKind: ghc
+            compilerVersion: 9.0.1
+            setup-method: hvr-ppa
             allow-failure: false
           - compiler: ghc-8.10.4
+            compilerKind: ghc
+            compilerVersion: 8.10.4
+            setup-method: hvr-ppa
             allow-failure: false
           - compiler: ghc-8.8.4
+            compilerKind: ghc
+            compilerVersion: 8.8.4
+            setup-method: hvr-ppa
             allow-failure: false
           - compiler: ghc-8.6.5
+            compilerKind: ghc
+            compilerVersion: 8.6.5
+            setup-method: hvr-ppa
             allow-failure: false
           - compiler: ghc-8.4.4
+            compilerKind: ghc
+            compilerVersion: 8.4.4
+            setup-method: hvr-ppa
             allow-failure: false
           - compiler: ghc-8.2.2
+            compilerKind: ghc
+            compilerVersion: 8.2.2
+            setup-method: hvr-ppa
             allow-failure: false
           - compiler: ghc-8.0.2
+            compilerKind: ghc
+            compilerVersion: 8.0.2
+            setup-method: hvr-ppa
             allow-failure: false
       fail-fast: false
     steps:
       - name: apt
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends gnupg ca-certificates dirmngr curl git software-properties-common
+          apt-get install -y --no-install-recommends gnupg ca-certificates dirmngr curl git software-properties-common libtinfo5
           apt-add-repository -y 'ppa:hvr/ghc'
           apt-get update
-          apt-get install -y $CC cabal-install-3.4
+          apt-get install -y "$HCNAME"
+          mkdir -p "$HOME/.ghcup/bin"
+          curl -sL https://downloads.haskell.org/ghcup/0.1.17.3/x86_64-linux-ghcup-0.1.17.3 > "$HOME/.ghcup/bin/ghcup"
+          chmod a+x "$HOME/.ghcup/bin/ghcup"
+          "$HOME/.ghcup/bin/ghcup" install cabal 3.6.2.0
         env:
-          CC: ${{ matrix.compiler }}
+          HCKIND: ${{ matrix.compilerKind }}
+          HCNAME: ${{ matrix.compiler }}
+          HCVER: ${{ matrix.compilerVersion }}
       - name: Set PATH and environment variables
         run: |
           echo "$HOME/.cabal/bin" >> $GITHUB_PATH
-          echo "LANG=C.UTF-8" >> $GITHUB_ENV
-          echo "CABAL_DIR=$HOME/.cabal" >> $GITHUB_ENV
-          echo "CABAL_CONFIG=$HOME/.cabal/config" >> $GITHUB_ENV
-          HCDIR=$(echo "/opt/$CC" | sed 's/-/\//')
-          HCNAME=ghc
-          HC=$HCDIR/bin/$HCNAME
-          echo "HC=$HC" >> $GITHUB_ENV
-          echo "HCPKG=$HCDIR/bin/$HCNAME-pkg" >> $GITHUB_ENV
-          echo "HADDOCK=$HCDIR/bin/haddock" >> $GITHUB_ENV
-          echo "CABAL=/opt/cabal/3.4/bin/cabal -vnormal+nowrap" >> $GITHUB_ENV
+          echo "LANG=C.UTF-8" >> "$GITHUB_ENV"
+          echo "CABAL_DIR=$HOME/.cabal" >> "$GITHUB_ENV"
+          echo "CABAL_CONFIG=$HOME/.cabal/config" >> "$GITHUB_ENV"
+          HCDIR=/opt/$HCKIND/$HCVER
+          HC=$HCDIR/bin/$HCKIND
+          echo "HC=$HC" >> "$GITHUB_ENV"
+          echo "HCPKG=$HCDIR/bin/$HCKIND-pkg" >> "$GITHUB_ENV"
+          echo "HADDOCK=$HCDIR/bin/haddock" >> "$GITHUB_ENV"
+          echo "CABAL=$HOME/.ghcup/bin/cabal-3.6.2.0 -vnormal+nowrap" >> "$GITHUB_ENV"
           HCNUMVER=$(${HC} --numeric-version|perl -ne '/^(\d+)\.(\d+)\.(\d+)(\.(\d+))?$/; print(10000 * $1 + 100 * $2 + ($3 == 0 ? $5 != 1 : $3))')
-          echo "HCNUMVER=$HCNUMVER" >> $GITHUB_ENV
-          echo "ARG_TESTS=--enable-tests" >> $GITHUB_ENV
-          echo "ARG_BENCH=--enable-benchmarks" >> $GITHUB_ENV
-          echo "HEADHACKAGE=false" >> $GITHUB_ENV
-          echo "ARG_COMPILER=--$HCNAME --with-compiler=$HC" >> $GITHUB_ENV
-          echo "GHCJSARITH=0" >> $GITHUB_ENV
+          echo "HCNUMVER=$HCNUMVER" >> "$GITHUB_ENV"
+          echo "ARG_TESTS=--enable-tests" >> "$GITHUB_ENV"
+          echo "ARG_BENCH=--enable-benchmarks" >> "$GITHUB_ENV"
+          echo "HEADHACKAGE=false" >> "$GITHUB_ENV"
+          echo "ARG_COMPILER=--$HCKIND --with-compiler=$HC" >> "$GITHUB_ENV"
+          echo "GHCJSARITH=0" >> "$GITHUB_ENV"
         env:
-          CC: ${{ matrix.compiler }}
+          HCKIND: ${{ matrix.compilerKind }}
+          HCNAME: ${{ matrix.compiler }}
+          HCVER: ${{ matrix.compilerVersion }}
       - name: env
         run: |
           env
@@ -98,6 +128,10 @@ jobs:
             prefix: $CABAL_DIR
           repository hackage.haskell.org
             url: http://hackage.haskell.org/
+          EOF
+          cat >> $CABAL_CONFIG <<EOF
+          program-default-options
+            ghc-options: $GHCJOBS +RTS -M3G -RTS
           EOF
           cat $CABAL_CONFIG
       - name: versions
@@ -129,6 +163,7 @@ jobs:
           echo "packages: $GITHUB_WORKSPACE/source/staged-streams" >> cabal.project
           echo "packages: $GITHUB_WORKSPACE/source/staged-streams-resourcet" >> cabal.project
           echo "packages: $GITHUB_WORKSPACE/source/staged-kleene" >> cabal.project
+          if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/staged-streams-unicode" >> cabal.project ; fi
           cat cabal.project
       - name: sdist
         run: |
@@ -141,15 +176,18 @@ jobs:
       - name: generate cabal.project
         run: |
           PKGDIR_staged_commons="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/staged-commons-[0-9.]*')"
-          echo "PKGDIR_staged_commons=${PKGDIR_staged_commons}" >> $GITHUB_ENV
+          echo "PKGDIR_staged_commons=${PKGDIR_staged_commons}" >> "$GITHUB_ENV"
           PKGDIR_staged_examples="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/staged-examples-[0-9.]*')"
-          echo "PKGDIR_staged_examples=${PKGDIR_staged_examples}" >> $GITHUB_ENV
+          echo "PKGDIR_staged_examples=${PKGDIR_staged_examples}" >> "$GITHUB_ENV"
           PKGDIR_staged_streams="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/staged-streams-[0-9.]*')"
-          echo "PKGDIR_staged_streams=${PKGDIR_staged_streams}" >> $GITHUB_ENV
+          echo "PKGDIR_staged_streams=${PKGDIR_staged_streams}" >> "$GITHUB_ENV"
           PKGDIR_staged_streams_resourcet="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/staged-streams-resourcet-[0-9.]*')"
-          echo "PKGDIR_staged_streams_resourcet=${PKGDIR_staged_streams_resourcet}" >> $GITHUB_ENV
+          echo "PKGDIR_staged_streams_resourcet=${PKGDIR_staged_streams_resourcet}" >> "$GITHUB_ENV"
           PKGDIR_staged_kleene="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/staged-kleene-[0-9.]*')"
-          echo "PKGDIR_staged_kleene=${PKGDIR_staged_kleene}" >> $GITHUB_ENV
+          echo "PKGDIR_staged_kleene=${PKGDIR_staged_kleene}" >> "$GITHUB_ENV"
+          PKGDIR_staged_streams_unicode="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/staged-streams-unicode-[0-9.]*')"
+          echo "PKGDIR_staged_streams_unicode=${PKGDIR_staged_streams_unicode}" >> "$GITHUB_ENV"
+          rm -f cabal.project cabal.project.local
           touch cabal.project
           touch cabal.project.local
           echo "packages: ${PKGDIR_staged_commons}" >> cabal.project
@@ -157,6 +195,7 @@ jobs:
           echo "packages: ${PKGDIR_staged_streams}" >> cabal.project
           echo "packages: ${PKGDIR_staged_streams_resourcet}" >> cabal.project
           echo "packages: ${PKGDIR_staged_kleene}" >> cabal.project
+          if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "packages: ${PKGDIR_staged_streams_unicode}" >> cabal.project ; fi
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "package staged-commons" >> cabal.project ; fi
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "package staged-examples" >> cabal.project ; fi
@@ -167,14 +206,15 @@ jobs:
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "package staged-kleene" >> cabal.project ; fi
           if [ $((HCNUMVER >= 80200)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "package staged-streams-unicode" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
           cat >> cabal.project <<EOF
-          allow-newer: split-0.2.3.4:base
           allow-newer: kleene:base
           allow-newer: range-set-list:base
           allow-newer: step-function:base
           allow-newer: lattices:base
           EOF
-          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: $_ installed\n" unless /^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet)$/; }' >> cabal.project.local
+          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: $_ installed\n" unless /^(staged-commons|staged-examples|staged-kleene|staged-streams|staged-streams-resourcet|staged-streams-unicode)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
       - name: dump install plan
@@ -212,6 +252,8 @@ jobs:
           ${CABAL} -vnormal check
           cd ${PKGDIR_staged_kleene} || false
           ${CABAL} -vnormal check
+          if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then cd ${PKGDIR_staged_streams_unicode} || false ; fi
+          if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
       - name: haddock
         run: |
           if [ $((HCNUMVER >= 80600)) -ne 0 ] ; then $CABAL v2-haddock $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all ; fi
