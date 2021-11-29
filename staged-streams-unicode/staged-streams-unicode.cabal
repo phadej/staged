@@ -76,3 +76,17 @@ benchmark json-bench
     , staged-streams
     , staged-streams-unicode
     , text
+
+benchmark json-weigh
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench common
+  main-is:          json-weigh.hs
+  other-modules:    UnescapePure
+  build-depends:
+    , base
+    , bytestring
+    , staged-streams
+    , staged-streams-unicode
+    , text
+    , weigh
