@@ -68,7 +68,10 @@ test-suite json-tests
   type:             exitcode-stdio-1.0
   hs-source-dirs:   tests common
   main-is:          json-tests.hs
-  other-modules:    UnescapePure
+  other-modules:
+    UnescapePure
+    UnescapePure2
+
   build-depends:
     , base
     , bytestring

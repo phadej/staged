@@ -14,6 +14,7 @@ import qualified Data.Text.Encoding as TE
 import Unicode.JSON (unescapeText)
 
 import qualified UnescapePure
+import qualified UnescapePure2
 
 main :: IO ()
 main = defaultMain $ testGroup "json-tests"
@@ -47,6 +48,13 @@ main = defaultMain $ testGroup "json-tests"
             rhs = unescapeText_aeson bs
             l   = maybe "failure" (const "success") rhs
         in label l $ lhs === rhs
+
+    , testProperty "bytestring2" $ \w8s ->
+        let bs = BS.pack w8s -- $ filter (>=0x20) w8s
+            lhs = unescapeText_staged bs
+            rhs = unescapeText_aeson2 bs
+            l   = maybe "failure" (const "success") rhs
+        in label l $ lhs === rhs
     ]
   where
     example :: ByteString -> T.Text -> TestTree
@@ -58,3 +66,6 @@ unescapeText_staged = either (const Nothing) Just . unescapeText
 
 unescapeText_aeson :: ByteString -> Maybe T.Text
 unescapeText_aeson = either (const Nothing) Just . UnescapePure.unescapeText
+
+unescapeText_aeson2 :: ByteString -> Maybe T.Text
+unescapeText_aeson2 = either (const Nothing) Just . UnescapePure2.unescapeText
