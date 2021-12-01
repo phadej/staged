@@ -1,6 +1,5 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -ddump-splices #-}
+{-# OPTIONS_GHC -ddump-splices -ddump-to-file #-}
 -- | JSON string literal decoder
 module Unicode.JSON (
     unescapeText,
@@ -19,13 +18,7 @@ import qualified Data.Text.Internal as T
 
 import Unicode.ByteString.Source
 import Unicode.JSON.Decoder
-import Unicode.PrimArray.Sink
-
-#if MIN_VERSION_text(2,0,0)
-import Unicode.UTF8.Encoder
-#else
-import Unicode.UTF16.Encoder
-#endif
+import Unicode.Text.Sink
 
 -- for prettier splice
 import Data.Bits          (shiftL, shiftR, (.&.), (.|.))
@@ -54,10 +47,4 @@ invalidUtf8 = throwIO UnicodeException
 unescapeTextIO :: BS.ByteString -> IO T.Text
 unescapeTextIO bs =
     $$(withUnpackedByteString [|| bs ||] $ \len w8s ->
-#if MIN_VERSION_text(2,0,0)
-       sinkPrimArray [|| invalidUtf8 ||] len [|| () ||] (utf8encoder $ jsonStringDecoder w8s) $ \len' p ->
-       sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.ByteArray ba) 0 $$len' ||])
-#else
-       sinkPrimArray [|| invalidUtf8 ||] len [|| () ||] (utf16encoder $ jsonStringDecoder w8s) $ \len' p ->
-       sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.Array ba) 0 $$len' ||])
-#endif
+      sinkText [|| invalidUtf8 ||] len [|| () ||] (jsonStringDecoder w8s))

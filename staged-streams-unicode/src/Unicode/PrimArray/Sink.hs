@@ -34,7 +34,7 @@ sinkPrimArray err len a (S.MkStreamFM start steps0) k = [|| do
         -> (SOP C xss -> C Int -> C (IO r))
     body arr steps loop curr idx = steps curr $ \case
         Fail        -> err
-        Stop        -> [|| P.unsafeFreezePrimArray $$arr ||] >>>= k idx
+        Stop        -> [|| do { P.shrinkMutablePrimArray $$arr $$idx; P.unsafeFreezePrimArray $$arr } ||] >>>= k idx
         Skip   next -> loop next idx
         Emit b next -> [|| do
             P.writePrimArray $$arr $$idx $$b

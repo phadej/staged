@@ -20,6 +20,7 @@ library
     Unicode.JSON
     Unicode.JSON.Decoder
     Unicode.PrimArray.Sink
+    Unicode.Text.Sink
     Unicode.Types
     Unicode.UTF16.Encoder
     Unicode.UTF8.Decoder
