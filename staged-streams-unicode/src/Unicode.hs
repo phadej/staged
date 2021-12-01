@@ -11,16 +11,16 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import Staged.Commons
 
-import qualified Data.Primitive          as P
-import qualified Data.ByteString         as BS
-import qualified Staged.Stream.Fallible  as S
-import qualified Data.Text.Array      as T
-import qualified Data.Text.Internal   as T
+import qualified Data.ByteString        as BS
+import qualified Data.Primitive         as P
+import qualified Data.Text.Array        as T
+import qualified Data.Text.Internal     as T
+import qualified Staged.Stream.Fallible as S
 
 import Unicode.ByteString.Source
+import Unicode.PrimArray.Sink
 import Unicode.UTF16.Encoder
 import Unicode.UTF8.Decoder
-import Unicode.PrimArray.Sink
 
 -- for prettier splice
 {-
