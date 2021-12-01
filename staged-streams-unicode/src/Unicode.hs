@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- {-# OPTIONS_GHC -ddump-splices #-}
 module Unicode (
@@ -20,6 +21,7 @@ import qualified Staged.Stream.Fallible as S
 import Unicode.ByteString.Source
 import Unicode.PrimArray.Sink
 import Unicode.UTF16.Encoder
+import Unicode.UTF8.Encoder
 import Unicode.UTF8.Decoder
 
 -- for prettier splice
@@ -44,8 +46,13 @@ fromUTF8BS bs = unsafePerformIO $
 textFromUTF8BS :: BS.ByteString -> T.Text
 textFromUTF8BS bs = unsafePerformIO $
     $$(withUnpackedByteString [|| bs ||] $ \len w8s ->
+#if MIN_VERSION_text(2,0,0)
+       sinkPrimArray [|| invalidUtf8 ||] len [|| () ||] (utf8encoder $ utf8decoder w8s) $ \len' p ->
+       sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.ByteArray ba) 0 $$len' ||])
+#else
        sinkPrimArray [|| invalidUtf8 ||] len [|| () ||] (utf16encoder $ utf8decoder w8s) $ \len' p ->
        sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.Array ba) 0 $$len' ||])
+#endif
   where
     invalidUtf8 :: IO T.Text
     invalidUtf8 = fail "Invalid UTF8"

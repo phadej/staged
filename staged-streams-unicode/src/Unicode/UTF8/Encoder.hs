@@ -28,9 +28,9 @@ utf8bytes
     -> C r
 utf8bytes w32 k1 k2 k3 k4 = 
     [|| if | $$w32 <= 0x7f   -> $$(k1 (w32w8 w32))
-           | $$w32 <= 0x7ff  -> $$(k2 (w32w8 (sbor (0xc0) (sshiftR 6  w32))) (w32w8 (top (low6 w32))))
-           | $$w32 <= 0xffff -> $$(k3 (w32w8 (sbor (0xe0) (sshiftR 12 w32))) (w32w8 (top (low6 (sshiftR 6  w32)))) (w32w8 (top (low6 w32))))
-           | otherwise       -> $$(k4 (w32w8 (sbor (0xf0) (sshiftR 18 w32))) (w32w8 (top (low6 (sshiftR 12 w32)))) (w32w8 (top (low6 (sshiftR 6 w32)))) (w32w8 (top (low6 w32))))
+           | $$w32 <= 0x7ff  -> $$(k2 (w32w8 (sbor 0xc0 (sshiftR 6  w32))) (w32w8 (top (low6 w32))))
+           | $$w32 <= 0xffff -> $$(k3 (w32w8 (sbor 0xe0 (sshiftR 12 w32))) (w32w8 (top (low6 (sshiftR 6  w32)))) (w32w8 (top (low6 w32))))
+           | otherwise       -> $$(k4 (w32w8 (sbor 0xf0 (sshiftR 18 w32))) (w32w8 (top (low6 (sshiftR 12 w32)))) (w32w8 (top (low6 (sshiftR 6 w32)))) (w32w8 (top (low6 w32))))
      ||]
   where
     low6 :: C Word32 -> C Word32
