@@ -75,6 +75,7 @@ test-suite json-tests
 
   build-depends:
     , base
+    , base16-bytestring
     , bytestring
     , QuickCheck
     , staged-streams
