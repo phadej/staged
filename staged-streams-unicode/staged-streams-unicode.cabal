@@ -23,6 +23,7 @@ library
     Unicode.Types
     Unicode.UTF16.Encoder
     Unicode.UTF8.Decoder
+    Unicode.UTF8.Encoder
 
   build-depends:
     , base            ^>=4.15.0.0
@@ -45,6 +46,22 @@ executable utf8-decode
     , staged-streams-unicode
     , text
     , utf8-string
+
+test-suite ss-unicode-tests
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   tests common
+  main-is:          ss-unicode-tests.hs
+  build-depends:
+    , base
+    , bytestring
+    , QuickCheck
+    , staged-streams
+    , staged-streams-unicode
+    , tasty
+    , tasty-hunit
+    , tasty-quickcheck
+    , text
 
 test-suite json-tests
   default-language: Haskell2010
