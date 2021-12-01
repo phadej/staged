@@ -30,6 +30,6 @@ foreachPtr begin end = S.mkStreamFM start step where
 
     step :: C (Ptr Word8) -> (S.FallibleStep (C Word8) (C (Ptr Word8)) -> C (IO r)) -> C (IO r)
     step ptr k = sIfThenElse
-        [|| $$ptr /= $$end ||]
-        ([|| peek ($$ptr :: Ptr Word8) ||] >>>= \w8 -> k $ S.Emit w8 [|| plusPtr $$ptr 1 ||])
+        [|| $$ptr == $$end ||]
         (k S.Stop)
+        ([|| peek ($$ptr :: Ptr Word8) ||] >>>= \w8 -> k $ S.Emit w8 [|| plusPtr $$ptr 1 ||])
