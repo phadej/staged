@@ -75,6 +75,10 @@ library
     Staged.Stream.Pure.Examples
     Staged.Stream.Pure.Type
 
+  exposed-modules:
+    Staged.Stream.Final.Type
+
+
   reexported-modules:
     Staged.Compat,
     Staged.Commons
