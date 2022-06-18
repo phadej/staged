@@ -13,6 +13,8 @@ import qualified GHC.Generics as GHC
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.ConcatMapAppend
 
+import Staged.Stream.Final.Internal
+
 
 -- | For @>>>@ combinator
 data Comp xss yss code
@@ -22,8 +24,8 @@ data Comp xss yss code
 
 -- | For @append@ combinator
 data App a xss yss code
-    = AppL (code a) (SOP code xss)
-    | AppR          (SOP code yss)
+    = AppL (O code a) (SOP code xss)
+    | AppR            (SOP code yss)
   deriving (GHC.Generic)
 
 -- | For @zipWith@ combinator

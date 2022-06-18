@@ -78,6 +78,8 @@ library
   exposed-modules:
     Staged.Stream.Final.Type
     Staged.Stream.Final.States
+    Staged.Stream.Final.Internal
+    Staged.Stream.Final.Convenience
 
   reexported-modules:
     Staged.Compat,

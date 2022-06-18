@@ -12,18 +12,21 @@
 {-# LANGUAGE TypeOperators           #-}
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
+{-# LANGUAGE LambdaCase #-}
 -- | More convenient (than direct) 'Stream' creation.
-module Staged.Stream.Pure.Convenience (
+module Staged.Stream.Final.Convenience (
     -- * Convenience helpers
-    mkStream,
+    mkStreamG,
     -- * Constraint
     FlattenCode,
     ) where
 
 import Data.SOP
 import Staged.Commons
-import Staged.Stream.Internal
-import Staged.Stream.Pure.Type
+import Staged.Stream.Final.Internal
+import Staged.Stream.Final.Type
+
+import Staged.Stream.Final.States
 
 -- | Create 'Stream' from a simple state.
 --
@@ -46,16 +49,33 @@ import Staged.Stream.Pure.Type
 -- /Note:/ you should prefer using 'Staged.Stream.Combinators.traverse' combinator if
 -- possible, as it doesn't make state space bigger.
 --
-mkStream
-    :: forall a b s xss. FlattenCode s xss
-    => (C a -> s)                                             -- ^ start state
-    -> (forall r. s -> (Step (C b) s -> C r) -> C r)  -- ^ step function
-    -> Stream a b
-mkStream start0 step0 =
-    allFlattenCode (Proxy :: Proxy s) $ MkStream start step
+mkStreamG
+    :: forall code a b s xss. FlattenCode s code xss
+    => (code a -> s code)                                                  -- ^ start state
+    -> (forall r. s code -> (Step (code b) (s code) -> code r) -> code r)  -- ^ step function
+    -> StreamG code a b
+mkStreamG start0 step0 =
+    allFlattenCode @s @code @xss (Proxy :: Proxy (s term)) $ MkStreamG start step
   where
-    start :: C a -> SOP C xss
+    start :: code a -> SOP code xss
     start = from' . start0
 
-    step :: SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r
+    step :: SOP code xss -> (Step (code b) (SOP code xss) -> code r) -> code r
     step s k = step0 (to' s) (k . fmap from')
+
+-------------------------------------------------------------------------------
+-- test: WIP
+-------------------------------------------------------------------------------
+
+append :: forall code a b. StreamG code a b -> StreamG code a b -> StreamG code a b
+append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
+    mkStreamG (\a -> AppL (O a) (startL a)) $ \step k -> case step of
+        AppL a xss -> stepsL xss $ \case
+            Stop        -> k (Skip   (AppR (startR (unO a))))
+            Skip   xss' -> k (Skip   (AppL a xss'))
+            Emit b xss' -> k (Emit b (AppL a xss'))
+
+        AppR yss -> stepsR yss $ \case
+            Stop -> k Stop
+            Skip   yss' -> k (Skip   (AppR yss'))
+            Emit b yss' -> k (Emit b (AppR yss'))

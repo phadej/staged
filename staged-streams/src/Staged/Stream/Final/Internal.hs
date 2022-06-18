@@ -16,8 +16,9 @@
 {-# LANGUAGE TypeOperators           #-}
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# OPTIONS_GHC -fprint-explicit-kinds -fprint-explicit-foralls #-}
-module Staged.Stream.Internal where
+module Staged.Stream.Final.Internal where
 
 import Data.Kind           (Constraint, Type)
 import Data.Proxy          (Proxy (..))
@@ -34,28 +35,81 @@ import Data.SOP.NP (cmap_NP, map_NP, sequence'_NP)
 import Data.SOP.NS (collapse_NS, liftA2_NS)
 
 import Data.SOP.Fn.All
+import Data.SOP.Fn.Append
 import Data.SOP.Fn.Flatten
-import Staged.Commons
+
+newtype O f a = O { unO :: f a }
 
 -------------------------------------------------------------------------------
 -- Type families
 -------------------------------------------------------------------------------
 
 -- | A utility type-class powering convenience stream creation functions.
-class FlattenCode s xss | s -> xss where
-    allFlattenCode :: Proxy s -> (SListI2 xss => r) -> r
+class FlattenCode s term (xss :: [[Type]]) | s term -> xss where
+    allFlattenCode :: Proxy (s term) -> (SListI2 xss => r) -> r
 
-    from' :: s -> SOP C xss
-    to'   :: SOP C xss -> s
+    from' :: s term -> SOP term xss
+    to'   :: SOP term xss -> s term
 
+-------------------------------------------------------------------------------
+-- new impl
+-------------------------------------------------------------------------------
+
+instance (GHC.Generic (s term), FlattenCode0 (GHC.Rep (s term)) term xss) => FlattenCode s term xss where
+
+class FlattenCode0 rep term xss | rep -> xss where
+
+instance FlattenCode1 f term xss => FlattenCode0 (GHC.M1 i c f) term xss where
+
+class FlattenCode1 rep term xss | rep -> xss where
+    allFlattenCode1 :: Proxy rep -> Proxy term -> (SListI2 xss => r) -> r
+
+instance (FlattenCode1 f term xss, FlattenCode1 g term yss, zss ~ Append xss yss ) => FlattenCode1 (f GHC.:+: g) term zss where
+    allFlattenCode1 _ term k =
+        allFlattenCode1 (Proxy @f) term $
+        allFlattenCode1 (Proxy @g) term $
+        append_SListI2 (Proxy @xss) (Proxy @yss) k
+
+instance FlattenCode2 f term xss => FlattenCode1 (GHC.M1 i c f) term xss where
+
+class FlattenCode2 rep term xss | rep -> xss where
+
+-- TODO
+instance (FlattenCode2 f term xss, FlattenCode2 g term yss) => FlattenCode2 (f GHC.:*: g) term xss where
+
+instance FlattenCode3 f term xss => FlattenCode2 (GHC.M1 i c f) term xss where
+
+class FlattenCode3 rep term xss | rep -> xss where
+
+instance (FlattenCodeK a term xss, r ~ GHC.R) => FlattenCode3 (GHC.K1 r a) term xss where
+
+class SListI2 xss => FlattenCodeK a term (xss :: [[Type]]) | a -> xss where
+    fromK :: a -> SOP term xss
+    toK   :: SOP term xss -> a
+
+instance (code ~ code', SListI2 xss) => FlattenCodeK (SOP code xss) code' xss where
+    fromK = id
+    toK = id
+
+instance code ~ code' => FlattenCodeK (O code a) code' '[ '[ a ] ] where
+    fromK (O x) = SOP (Z (x :* Nil))
+    toK (SOP (Z (x :* Nil))) = O x
+
+-------------------------------------------------------------------------------
+-- old
+-------------------------------------------------------------------------------
+
+{-
+{-
 instance {-# OVERLAPPING #-} m ~ Q => FlattenCode (Code m a) '[ '[ a ] ] where
     allFlattenCode _ k = k
 
     from' x = SOP (Z (x :* Nil))
     to' (SOP (Z (x :* Nil))) = x
     to' (SOP (S x))          = case x of {}
+-}
 
-instance {-# OVERLAPPABLE #-} (GHC.Generic s, GFrom s, GTo s, FlattenCodeErr0 (GCode s), FlattenCode0 (GCode s) xssss, xss ~ FLATTEN xssss) => FlattenCode s xss where
+instance (GHC.Generic s, GFrom s, GTo s, FlattenCodeErr0 (GCode s), FlattenCode0 (GCode s) xssss, xss ~ FLATTEN xssss) => FlattenCode s xss where
     allFlattenCode _ = allFLATTEN prTop (Proxy :: Proxy xssss)
 
     from' = SOP . flatten_NSNP . codeFlatFwd . unSOP . gfrom
@@ -133,6 +187,7 @@ instance (e ~ TExp x) => FlattenCode2 (Q e) '[ '[ x ] ] where
 -- Fixedpoints
 -------------------------------------------------------------------------------
 
+{-
 -- | Type of 'fix'. Fixedpoint of @a@.
 type Fixedpoint a = (a -> a) -> a
 
@@ -152,6 +207,7 @@ sletrec1_SOP f sop b =
   where
     fwd = from' @(C b, SOP C xss)
     bwd = to'   @(C b, SOP C xss)
+-}
 
 -------------------------------------------------------------------------------
 -- GGP
@@ -308,6 +364,7 @@ gto x = GHC.to (gSumTo x id ((\y -> case y of {}) :: SOP I '[] -> (GHC.Rep a) x)
 -- Alternative sletrec_NSNP using sletrecH
 -------------------------------------------------------------------------------
 
+{-
 -- I'm not proud of this.
 --
 -- But inspection-testing doesn't say this is bad
@@ -400,3 +457,5 @@ newtype FunTo b xs = FunTo (NP C xs -> C b)
 withNSNP :: SListI2 xss => NS (NP C) xss -> (forall r. Elem b xss r -> (C r -> C b) -> res) -> res
 withNSNP (Z np) k = k Here (`sapply_NP` np)
 withNSNP (S ns) k = withNSNP ns (\el f -> k (There el) f)
+-}
+-}
