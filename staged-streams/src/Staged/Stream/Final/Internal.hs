@@ -20,24 +20,18 @@
 {-# OPTIONS_GHC -fprint-explicit-kinds -fprint-explicit-foralls #-}
 module Staged.Stream.Final.Internal where
 
-import Data.Kind           (Constraint, Type)
+import Data.Kind           (Type)
+import Data.Bifunctor (bimap)
 import Data.Proxy          (Proxy (..))
-import Data.Type.Equality  ((:~:) (..))
-import GHC.TypeLits        (ErrorMessage (..), TypeError)
-import Language.Haskell.TH (TExp)
 
 import qualified GHC.Generics as GHC
 
-import Data.SOP
-       ((:.:) (..), I (..), K (..), NP (..), NS (..), SList (..), SListI,
-       SListI2, SOP (..), sList, unI, unSOP, unZ)
-import Data.SOP.NP (cmap_NP, map_NP, sequence'_NP)
-import Data.SOP.NS (collapse_NS, liftA2_NS)
+import Data.SOP (SListI2, SOP (..), NP (..), NS (..))
 
-import Data.SOP.Fn.All
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.ConcatMapAppend
 
+-- Use Ap
 newtype O f a = O { unO :: f a }
 
 -------------------------------------------------------------------------------
@@ -58,11 +52,20 @@ class FlattenCode s term (xss :: [[Type]]) | s term -> xss where
 instance (GHC.Generic (s term), FlattenCodeRep (GHC.Rep (s term)) term xss) => FlattenCode s term xss where
     allFlattenCode _ term k = allFlattenCodeRep (Proxy @(GHC.Rep (s term))) term k
 
+    from' = fromRep . GHC.from
+    to'   = GHC.to . toRep
+
 class FlattenCodeRep rep term xss | rep -> xss where
     allFlattenCodeRep :: Proxy rep -> Proxy term -> (SListI2 xss => r) -> r
 
+    fromRep :: rep () -> SOP term xss
+    toRep   :: SOP term xss -> rep ()
+
 instance FlattenCodeRep f term xss => FlattenCodeRep (GHC.M1 i c f) term xss where
     allFlattenCodeRep _ term k = allFlattenCodeRep (Proxy @f) term k
+
+    fromRep = fromRep . GHC.unM1
+    toRep   = GHC.M1 . toRep
 
 instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ Append xss yss) => FlattenCodeRep (f GHC.:+: g) term zss where
     allFlattenCodeRep _ term k =
@@ -70,14 +73,43 @@ instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ Append xss
         allFlattenCodeRep (Proxy @g) term $
         append_SListI2 (Proxy @xss) (Proxy @yss) k
 
+    fromRep =
+        allFlattenCodeRep (Proxy @f) (Proxy @term) $
+        append_SOP . bimap fromRep fromRep . toEither
+      where
+        toEither :: (f GHC.:+: g) x -> Either (f x) (g x)
+        toEither (GHC.L1 x) = Left x
+        toEither (GHC.R1 y) = Right y
+
+    toRep =
+        allFlattenCodeRep (Proxy @f) (Proxy @term) $
+        fromEither . bimap toRep toRep . split_SOP
+      where
+        fromEither :: Either (f x) (g x) -> (f GHC.:+: g) x
+        fromEither = either GHC.L1 GHC.R1
+
 instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ ConcatMapAppend xss yss) => FlattenCodeRep (f GHC.:*: g) term zss where
     allFlattenCodeRep _ term k =
         allFlattenCodeRep (Proxy @f) term $
         allFlattenCodeRep (Proxy @g) term $
         concatMapAppend_SListI2 (Proxy @xss) (Proxy @yss) k
 
+    fromRep (xss GHC.:*: yss) =
+        allFlattenCodeRep (Proxy @f) (Proxy @term) $
+        allFlattenCodeRep (Proxy @g) (Proxy @term) $
+        concatMapAppend_SOP (fromRep xss) (fromRep yss)
+
+    toRep sop =
+        allFlattenCodeRep (Proxy @f) (Proxy @term) $
+        allFlattenCodeRep (Proxy @g) (Proxy @term) $
+        let (xss, yss) = unconcatMapAppend_SOP sop
+        in toRep xss GHC.:*: toRep yss
+
 instance (FlattenCodeK a term xss, r ~ GHC.R) => FlattenCodeRep (GHC.K1 r a) term xss where
     allFlattenCodeRep _ _ k = k
+
+    fromRep = fromK . GHC.unK1
+    toRep   = GHC.K1 . toK
 
 class SListI2 xss => FlattenCodeK a term (xss :: [[Type]]) | a -> xss where
     fromK :: a -> SOP term xss
@@ -90,6 +122,7 @@ instance (code ~ code', SListI2 xss) => FlattenCodeK (SOP code xss) code' xss wh
 instance code ~ code' => FlattenCodeK (O code a) code' '[ '[ a ] ] where
     fromK (O x) = SOP (Z (x :* Nil))
     toK (SOP (Z (x :* Nil))) = O x
+    toK (SOP (S x)) = case x of {}
 
 -------------------------------------------------------------------------------
 -- old
@@ -378,7 +411,7 @@ sletrec_NSNP_alt body args = withNSNP args $ \el f ->
     f (sletrecH eqElem loopid el)
   where
     -- because of simplified subsumption
-    loopid 
+    loopid
         :: Monad m
         => (forall c. Elem b xss c -> m (C c))
         -> Elem b xss d -> m (C d)

@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE TypeApplications #-}
 -- | 'Append' type family, and related stuff for 'NP' and 'NS'.
 module Data.SOP.Fn.Append (
     -- * Type family: Append
@@ -20,6 +21,9 @@ module Data.SOP.Fn.Append (
     split_NS',
     injLeft,
     injRight,
+    -- * SOP
+    append_SOP,
+    split_SOP,
     -- * Constraints
     append_SListI,
     allAppend,
@@ -30,6 +34,7 @@ module Data.SOP.Fn.Append (
 
 import Data.SOP
 import Data.SOP.Sh
+import Data.Coerce (coerce)
 
 -------------------------------------------------------------------------------
 -- Type family
@@ -102,6 +107,16 @@ injLeft _ xs = append_NS (Left xs :: Either (NS f xs) (NS f ys))
 
 injRight :: forall xs ys f proxy. SListI xs => proxy xs -> NS f ys -> NS f (Append xs ys)
 injRight _ ys = append_NS (Right ys :: Either (NS f xs) (NS f ys))
+
+-------------------------------------------------------------------------------
+-- SOP
+-------------------------------------------------------------------------------
+
+append_SOP :: forall xs ys f. SListI xs => Either (SOP f xs) (SOP f ys) -> SOP f (Append xs ys)
+append_SOP = coerce (append_NS @xs @ys @(NP f))
+
+split_SOP :: forall xs ys f. SListI xs => SOP f (Append xs ys) -> Either (SOP f xs) (SOP f ys)
+split_SOP = coerce (split_NS @xs @ys @(NP f))
 
 -------------------------------------------------------------------------------
 -- Constraints

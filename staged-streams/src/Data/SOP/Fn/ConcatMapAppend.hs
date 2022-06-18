@@ -16,7 +16,7 @@ module Data.SOP.Fn.ConcatMapAppend (
     unconcatMapAppend_SOP,
     concatMapAppend_NSNP,
     unconcatMapAppend_NSNP,
-    
+
     -- * Proxies
     prConcatMapAppend,
     -- * Constraints
