@@ -77,7 +77,7 @@ library
 
   exposed-modules:
     Staged.Stream.Final.Type
-
+    Staged.Stream.Final.States
 
   reexported-modules:
     Staged.Compat,
