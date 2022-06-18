@@ -22,7 +22,6 @@ module Staged.Stream.Final.Convenience (
     ) where
 
 import Data.SOP
-import Staged.Commons
 import Staged.Stream.Final.Internal
 import Staged.Stream.Final.Type
 
@@ -55,7 +54,7 @@ mkStreamG
     -> (forall r. s code -> (Step (code b) (s code) -> code r) -> code r)  -- ^ step function
     -> StreamG code a b
 mkStreamG start0 step0 =
-    allFlattenCode @s @code @xss (Proxy :: Proxy (s term)) $ MkStreamG start step
+    allFlattenCode (Proxy @s) (Proxy @code) $ MkStreamG start step
   where
     start :: code a -> SOP code xss
     start = from' . start0

@@ -36,7 +36,7 @@ import Data.SOP.NS (collapse_NS, liftA2_NS)
 
 import Data.SOP.Fn.All
 import Data.SOP.Fn.Append
-import Data.SOP.Fn.Flatten
+import Data.SOP.Fn.ConcatMapAppend
 
 newtype O f a = O { unO :: f a }
 
@@ -46,7 +46,7 @@ newtype O f a = O { unO :: f a }
 
 -- | A utility type-class powering convenience stream creation functions.
 class FlattenCode s term (xss :: [[Type]]) | s term -> xss where
-    allFlattenCode :: Proxy (s term) -> (SListI2 xss => r) -> r
+    allFlattenCode :: Proxy s -> Proxy term -> (SListI2 xss => r) -> r
 
     from' :: s term -> SOP term xss
     to'   :: SOP term xss -> s term
@@ -55,33 +55,29 @@ class FlattenCode s term (xss :: [[Type]]) | s term -> xss where
 -- new impl
 -------------------------------------------------------------------------------
 
-instance (GHC.Generic (s term), FlattenCode0 (GHC.Rep (s term)) term xss) => FlattenCode s term xss where
+instance (GHC.Generic (s term), FlattenCodeRep (GHC.Rep (s term)) term xss) => FlattenCode s term xss where
+    allFlattenCode _ term k = allFlattenCodeRep (Proxy @(GHC.Rep (s term))) term k
 
-class FlattenCode0 rep term xss | rep -> xss where
+class FlattenCodeRep rep term xss | rep -> xss where
+    allFlattenCodeRep :: Proxy rep -> Proxy term -> (SListI2 xss => r) -> r
 
-instance FlattenCode1 f term xss => FlattenCode0 (GHC.M1 i c f) term xss where
+instance FlattenCodeRep f term xss => FlattenCodeRep (GHC.M1 i c f) term xss where
+    allFlattenCodeRep _ term k = allFlattenCodeRep (Proxy @f) term k
 
-class FlattenCode1 rep term xss | rep -> xss where
-    allFlattenCode1 :: Proxy rep -> Proxy term -> (SListI2 xss => r) -> r
-
-instance (FlattenCode1 f term xss, FlattenCode1 g term yss, zss ~ Append xss yss ) => FlattenCode1 (f GHC.:+: g) term zss where
-    allFlattenCode1 _ term k =
-        allFlattenCode1 (Proxy @f) term $
-        allFlattenCode1 (Proxy @g) term $
+instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ Append xss yss) => FlattenCodeRep (f GHC.:+: g) term zss where
+    allFlattenCodeRep _ term k =
+        allFlattenCodeRep (Proxy @f) term $
+        allFlattenCodeRep (Proxy @g) term $
         append_SListI2 (Proxy @xss) (Proxy @yss) k
 
-instance FlattenCode2 f term xss => FlattenCode1 (GHC.M1 i c f) term xss where
+instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ ConcatMapAppend xss yss) => FlattenCodeRep (f GHC.:*: g) term zss where
+    allFlattenCodeRep _ term k =
+        allFlattenCodeRep (Proxy @f) term $
+        allFlattenCodeRep (Proxy @g) term $
+        concatMapAppend_SListI2 (Proxy @xss) (Proxy @yss) k
 
-class FlattenCode2 rep term xss | rep -> xss where
-
--- TODO
-instance (FlattenCode2 f term xss, FlattenCode2 g term yss) => FlattenCode2 (f GHC.:*: g) term xss where
-
-instance FlattenCode3 f term xss => FlattenCode2 (GHC.M1 i c f) term xss where
-
-class FlattenCode3 rep term xss | rep -> xss where
-
-instance (FlattenCodeK a term xss, r ~ GHC.R) => FlattenCode3 (GHC.K1 r a) term xss where
+instance (FlattenCodeK a term xss, r ~ GHC.R) => FlattenCodeRep (GHC.K1 r a) term xss where
+    allFlattenCodeRep _ _ k = k
 
 class SListI2 xss => FlattenCodeK a term (xss :: [[Type]]) | a -> xss where
     fromK :: a -> SOP term xss
