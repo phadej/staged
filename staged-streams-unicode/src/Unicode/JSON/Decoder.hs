@@ -304,7 +304,8 @@ jsonStringDecoder (S.MkStreamFM s0 steps0) = S.mkStreamFM (Start . s0) (go steps
         Emit w8 s' -> hexDigit w8 (k Fail) $ \x ->
             [|| let lo = shiftL $$acc 4 .|. $$(w8w32 x)
                  in if | 0xdc00 <= lo, lo <= 0xdfff
-                       -> $$(k (Emit (combine [|| lo ||]) (Start s')))
+                       , let acc' = $$(combine [|| lo ||])
+                       -> $$(k (Emit [|| acc' ||] (Start s')))
 
                        | otherwise
                        -> $$(k Fail)
