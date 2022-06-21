@@ -27,7 +27,13 @@ maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
 license:       BSD-3-Clause
 license-file:  LICENSE
 tested-with:
-  GHC ==8.0.2 || ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.4 || ==8.10.4 || ==9.0.1
+  GHC ==8.0.2
+   || ==8.2.2
+   || ==8.4.4
+   || ==8.6.5
+   || ==8.8.4
+   || ==8.10.4
+   || ==9.0.1
 
 source-repository head
   type:     git
@@ -49,7 +55,8 @@ library
     , transformers      ^>=0.5.2.0
 
   -- other dependencies
-  build-depends:      sop-core ^>=0.5.0.0
+  build-depends:
+    , sop-core  ^>=0.5.0.0
 
   -- staged stream fusion: monadic
   exposed-modules:
@@ -57,16 +64,15 @@ library
     Staged.Stream.Combinators
     Staged.Stream.Convenience
     Staged.Stream.Directory
+    Staged.Stream.Fallible
+    Staged.Stream.Fallible.Combinators
+    Staged.Stream.Fallible.Convenience
+    Staged.Stream.Fallible.Step
+    Staged.Stream.Fallible.Type
     Staged.Stream.Step
     Staged.Stream.Type
 
   -- staged stream fusion: fallible monadic
-    Staged.Stream.Fallible
-    Staged.Stream.Fallible.Combinators
-    Staged.Stream.Fallible.Convenience
-    Staged.Stream.Fallible.Type
-    Staged.Stream.Fallible.Step
-
   -- staged stream fusion: pure
   exposed-modules:
     Staged.Stream.Pure
@@ -76,10 +82,11 @@ library
     Staged.Stream.Pure.Type
 
   exposed-modules:
-    Staged.Stream.Final.Type
-    Staged.Stream.Final.States
-    Staged.Stream.Final.Internal
+    Staged.Stream.Final.Combinators
     Staged.Stream.Final.Convenience
+    Staged.Stream.Final.Internal
+    Staged.Stream.Final.States
+    Staged.Stream.Final.Type
 
   reexported-modules:
     Staged.Compat,

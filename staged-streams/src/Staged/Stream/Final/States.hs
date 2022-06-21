@@ -15,6 +15,14 @@ import Data.SOP.Fn.ConcatMapAppend
 
 import Staged.Stream.Final.Internal
 
+data One code
+    = One
+  deriving (GHC.Generic)
+
+data Two code
+    = Two0
+    | Two1
+  deriving (GHC.Generic)
 
 -- | For @>>>@ combinator
 data Comp xss yss code

@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleInstances       #-}
 {-# LANGUAGE FunctionalDependencies  #-}
 {-# LANGUAGE KindSignatures          #-}
+{-# LANGUAGE LambdaCase              #-}
+{-# LANGUAGE PolyKinds               #-}
 {-# LANGUAGE RankNTypes              #-}
 {-# LANGUAGE ScopedTypeVariables     #-}
 {-# LANGUAGE TypeApplications        #-}
@@ -12,7 +14,6 @@
 {-# LANGUAGE TypeOperators           #-}
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
-{-# LANGUAGE LambdaCase #-}
 -- | More convenient (than direct) 'Stream' creation.
 module Staged.Stream.Final.Convenience (
     -- * Convenience helpers
@@ -22,9 +23,10 @@ module Staged.Stream.Final.Convenience (
     ) where
 
 import Data.SOP
+import Data.Kind (Type)
+
 import Staged.Stream.Final.Internal
 import Staged.Stream.Final.Type
-
 import Staged.Stream.Final.States
 
 -- | Create 'Stream' from a simple state.
@@ -49,7 +51,7 @@ import Staged.Stream.Final.States
 -- possible, as it doesn't make state space bigger.
 --
 mkStreamG
-    :: forall code a b s xss. FlattenCode s code xss
+    :: forall {k} (code :: k -> Type) (a :: k) (b :: k) (s :: (k -> Type) -> Type) (xss :: [[k]]). FlattenCode s code xss
     => (code a -> s code)                                                  -- ^ start state
     -> (forall r. s code -> (Step (code b) (s code) -> code r) -> code r)  -- ^ step function
     -> StreamG code a b
@@ -66,6 +68,7 @@ mkStreamG start0 step0 =
 -- test: WIP
 -------------------------------------------------------------------------------
 
+{-
 append :: forall code a b. StreamG code a b -> StreamG code a b -> StreamG code a b
 append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
     mkStreamG (\a -> AppL (O a) (startL a)) $ \step k -> case step of
@@ -78,3 +81,4 @@ append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
             Stop -> k Stop
             Skip   yss' -> k (Skip   (AppR yss'))
             Emit b yss' -> k (Emit b (AppR yss'))
+-}

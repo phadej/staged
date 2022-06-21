@@ -17,10 +17,12 @@
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# OPTIONS_GHC -fprint-explicit-kinds -fprint-explicit-foralls #-}
 module Staged.Stream.Final.Internal where
 
-import Data.Kind           (Type)
+import Data.Kind           (Type, Constraint)
 import Data.Bifunctor (bimap)
 import Data.Proxy          (Proxy (..))
 
@@ -32,6 +34,7 @@ import Data.SOP.Fn.Append
 import Data.SOP.Fn.ConcatMapAppend
 
 -- Use Ap
+type O :: (k -> Type) -> k -> Type
 newtype O f a = O { unO :: f a }
 
 -------------------------------------------------------------------------------
@@ -39,23 +42,28 @@ newtype O f a = O { unO :: f a }
 -------------------------------------------------------------------------------
 
 -- | A utility type-class powering convenience stream creation functions.
-class FlattenCode s term (xss :: [[Type]]) | s term -> xss where
+class FlattenCode (s :: (k -> Type) -> Type) (term :: k -> Type) (xss :: [[k]]) | s term -> xss where
     allFlattenCode :: Proxy s -> Proxy term -> (SListI2 xss => r) -> r
 
     from' :: s term -> SOP term xss
     to'   :: SOP term xss -> s term
 
+flattenCodeKind
+    :: forall {k} (s :: (k -> Type) -> Type) (term :: k -> Type) (xss :: [[k]]). FlattenCode s term xss
+    => Proxy s -> Proxy xss -> Proxy k
+flattenCodeKind _ _ = Proxy
+
 -------------------------------------------------------------------------------
 -- new impl
 -------------------------------------------------------------------------------
 
-instance (GHC.Generic (s term), FlattenCodeRep (GHC.Rep (s term)) term xss) => FlattenCode s term xss where
+instance (GHC.Generic (s term), FlattenCodeRep (GHC.Rep (s term)) term xss) => FlattenCode (s :: (k -> Type) -> Type) (term :: (k -> Type)) (xss :: [[k]]) where
     allFlattenCode _ term k = allFlattenCodeRep (Proxy @(GHC.Rep (s term))) term k
 
     from' = fromRep . GHC.from
     to'   = GHC.to . toRep
 
-class FlattenCodeRep rep term xss | rep -> xss where
+class FlattenCodeRep rep term (xss :: [[k]]) | rep term -> xss where
     allFlattenCodeRep :: Proxy rep -> Proxy term -> (SListI2 xss => r) -> r
 
     fromRep :: rep () -> SOP term xss
@@ -67,7 +75,7 @@ instance FlattenCodeRep f term xss => FlattenCodeRep (GHC.M1 i c f) term xss whe
     fromRep = fromRep . GHC.unM1
     toRep   = GHC.M1 . toRep
 
-instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ Append xss yss) => FlattenCodeRep (f GHC.:+: g) term zss where
+instance forall k (f :: Type -> Type) (g :: Type -> Type) (term :: k -> Type) (xss :: [[k]]) (yss :: [[k]]) (zss :: [[k]]). (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ Append xss yss) => FlattenCodeRep (f GHC.:+: g) term zss where
     allFlattenCodeRep _ term k =
         allFlattenCodeRep (Proxy @f) term $
         allFlattenCodeRep (Proxy @g) term $
@@ -88,7 +96,7 @@ instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ Append xss
         fromEither :: Either (f x) (g x) -> (f GHC.:+: g) x
         fromEither = either GHC.L1 GHC.R1
 
-instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ ConcatMapAppend xss yss) => FlattenCodeRep (f GHC.:*: g) term zss where
+instance forall k (f :: Type -> Type) (g :: Type -> Type) (term :: k -> Type) (xss :: [[k]]) (yss :: [[k]]) (zss :: [[k]]). (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ ConcatMapAppend xss yss) => FlattenCodeRep (f GHC.:*: g) term zss where
     allFlattenCodeRep _ term k =
         allFlattenCodeRep (Proxy @f) term $
         allFlattenCodeRep (Proxy @g) term $
@@ -105,21 +113,28 @@ instance (FlattenCodeRep f term xss, FlattenCodeRep g term yss, zss ~ ConcatMapA
         let (xss, yss) = unconcatMapAppend_SOP sop
         in toRep xss GHC.:*: toRep yss
 
+instance forall k (code :: k -> Type) (xss :: [[k]]). xss ~ '[ '[] ] => FlattenCodeRep GHC.U1 code xss where
+    allFlattenCodeRep _ _ k = k
+
+    fromRep _ = SOP (Z Nil)
+    toRep _   = GHC.U1
+
 instance (FlattenCodeK a term xss, r ~ GHC.R) => FlattenCodeRep (GHC.K1 r a) term xss where
     allFlattenCodeRep _ _ k = k
 
     fromRep = fromK . GHC.unK1
     toRep   = GHC.K1 . toK
 
-class SListI2 xss => FlattenCodeK a term (xss :: [[Type]]) | a -> xss where
+type FlattenCodeK :: forall k. Type -> (k -> Type) -> [[k]] -> Constraint
+class SListI2 xss => FlattenCodeK a term xss | a -> xss where
     fromK :: a -> SOP term xss
     toK   :: SOP term xss -> a
 
-instance (code ~ code', SListI2 xss) => FlattenCodeK (SOP code xss) code' xss where
+instance forall k (code :: k -> Type) (code' :: k -> Type) (xss :: [[k]]). (code ~ code', SListI2 xss) => FlattenCodeK (SOP code xss) code' xss where
     fromK = id
     toK = id
 
-instance code ~ code' => FlattenCodeK (O code a) code' '[ '[ a ] ] where
+instance forall k (code :: k -> Type) (code' :: k -> Type) (a :: k). code ~ code' => FlattenCodeK (O code a) code' '[ '[ a ] ] where
     fromK (O x) = SOP (Z (x :* Nil))
     toK (SOP (Z (x :* Nil))) = O x
     toK (SOP (S x)) = case x of {}
