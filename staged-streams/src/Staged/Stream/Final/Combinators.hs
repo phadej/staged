@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE EmptyCase           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
@@ -44,8 +45,9 @@ module Staged.Stream.Final.Combinators {- (
 import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
 -- import Prelude (undefined)
 
-import Data.SOP (SOP (..), SListI2)
+import Data.SOP (SOP (..), SListI2, I (..), unI)
 import Data.Kind (Type)
+import Language.Haskell.TH.Syntax (Code, Quote)
 
 import qualified Control.Category as  C
 
@@ -148,24 +150,41 @@ mapWithInput f (MkStreamG s0 steps0) =
 -- @
 lmap :: forall a b c ab. ToCodeFn Q a b ab => ab -> StreamG b c -> StreamG a c
 lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . toFn f) steps0
+-}
+
+class TermBool (term :: k -> Type) where
+    type TyBool term :: k
+
+    termIfThenElse :: term (TyBool term) -> term r -> term r -> term r
+
+instance TermBool I where
+    type TyBool I = Bool
+
+    termIfThenElse cond x y = I (if unI cond then unI x else unI y)
+
+instance Quote q => TermBool (Code q) where
+    type TyBool (Code q) = Bool
+
+    termIfThenElse cond x y = [|| if $$cond then $$x else $$y ||]
 
 -- |
 --
 -- @
 -- 'filter' :: (C b -> C Bool) -> 'Stream' a b -> 'Stream' a b
 -- @
-filter :: forall a b pred. ToCodeFn Q b Bool pred => pred -> StreamG a b -> StreamG a b
+filter :: forall a b term. TermBool term => (term b -> term (TyBool term)) -> StreamG term a b -> StreamG term a b
 filter p (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
-    go :: (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
-       -> (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
+    go :: (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
+       -> (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
     go steps s k = steps s $ \case
         Stop      -> k Stop
         Skip   s' -> k (Skip s')
-        Emit a s' -> sIfThenElse
-            (toFn p a)
+        Emit a s' -> termIfThenElse
+            (p a)
             (k (Emit a s'))
             (k (Skip s'))
 
+{-
 -------------------------------------------------------------------------------
 -- Take and drop
 -------------------------------------------------------------------------------
