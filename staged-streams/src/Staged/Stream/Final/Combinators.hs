@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE EmptyCase           #-}
@@ -48,8 +49,11 @@ import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
 import Data.SOP (SOP (..), SListI2, I (..), unI)
 import Data.Kind (Type)
 import Language.Haskell.TH.Syntax (Code, Quote)
+import Data.Proxy (Proxy (..))
 
 import qualified Control.Category as  C
+
+import Symantics
 
 import Staged.Stream.Final.States
 import Staged.Stream.Step
@@ -151,21 +155,6 @@ mapWithInput f (MkStreamG s0 steps0) =
 lmap :: forall a b c ab. ToCodeFn Q a b ab => ab -> StreamG b c -> StreamG a c
 lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . toFn f) steps0
 -}
-
-class TermBool (term :: k -> Type) where
-    type TyBool term :: k
-
-    termIfThenElse :: term (TyBool term) -> term r -> term r -> term r
-
-instance TermBool I where
-    type TyBool I = Bool
-
-    termIfThenElse cond x y = I (if unI cond then unI x else unI y)
-
-instance Quote q => TermBool (Code q) where
-    type TyBool (Code q) = Bool
-
-    termIfThenElse cond x y = [|| if $$cond then $$x else $$y ||]
 
 -- |
 --
@@ -448,24 +437,19 @@ foldl op e z (MkStreamG xs steps0) =
         Stop        -> acc
         Skip   next -> loop next acc
         Emit b next -> loop next (toFn2 op acc b)
+-}
 
 -- |
 --
--- @
--- 'toList' :: C a -> 'Stream' a b -> SpliceQ [b]
--- @
-toList
-    :: forall start a b. (IsCode Q a start)
-    => start -> StreamG a b -> SpliceQ [b]
+toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (TermLetRec expr, TermFun expr, TermList expr) => expr a -> StreamG expr a b -> expr (TyList expr b)
 toList a (MkStreamG start steps0) =
-    fromCode $ sletrec_SOP (body steps0) (start (toCode a))
+    termLetRec_SOP (body steps0) (start a)
   where
     body
-        :: (SOP C xss -> (Step (C b) (SOP C xss) -> C [b]) -> C [b])
-        -> (SOP C xss -> C [b])
-        -> SOP C xss -> C [b]
+        :: (SOP expr xss -> (Step (expr b) (SOP expr xss) -> expr (TyList expr b)) -> expr (TyList expr b))
+        -> (SOP expr xss -> expr (TyList expr b))
+        -> SOP expr xss -> expr (TyList expr b)
     body steps loop curr = steps curr $ \case
-        Stop        -> snil
+        Stop        -> termNil (Proxy @b)
         Skip   next -> loop next
-        Emit b next -> scons b (loop next)
--}
+        Emit b next -> termCons b (loop next)
