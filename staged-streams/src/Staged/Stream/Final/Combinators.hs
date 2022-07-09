@@ -46,7 +46,7 @@ module Staged.Stream.Final.Combinators {- (
 import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
 -- import Prelude (undefined)
 
-import Data.SOP (SOP (..), SListI2, I (..), unI)
+import Data.SOP (SOP (..), NS (..), NP (..), SListI2, I (..), unI)
 import Data.Kind (Type)
 import Language.Haskell.TH.Syntax (Code, Quote)
 import Data.Proxy (Proxy (..))
@@ -76,14 +76,13 @@ singleton b = mkStreamG start step where
     step Two0 k = k Stop
     step Two1 k = k (Emit b Two0)
 
-{-
 -- |
 --
 -- @
 -- 'fromList' :: (C a -> C [b]) -> 'Stream' a b
 -- @
-fromList :: ToCodeFn Q a [b] fn => fn -> StreamG a b
-fromList f = unfold f $ \bs k -> scaseList bs
+fromList :: forall a b code. TermList code => (code a -> code (TyList code b)) -> StreamG code a b
+fromList f = unfold f $ \bs k -> termCaseList bs
     (k Nothing)
     (\b bs' -> k (Just (b, bs')))
 
@@ -93,16 +92,17 @@ fromList f = unfold f $ \bs k -> scaseList bs
 -- 'unfold' :: (C a -> C b) -> (C b -> CPS (Maybe (C c, C b))) -> 'Stream' a c
 -- @
 unfold
-    :: forall a b c fn. ToCodeFn Q a b fn
-    => fn
-    -> (forall r. C b -> (Maybe (C c, C b) -> C r) -> C r) -- ^ unfolding
-    -> StreamG a c
-unfold start f = mkStreamG (toFn start) steps where
-    steps :: C b -> (Step (C c) (C b) -> C r) -> C r
-    steps curr k = f curr $ \case
+    :: forall a b c code. (TermList code)
+    => (code a -> code b)
+    -> (forall r. code b -> (Maybe (code c, code b) -> code r) -> code r) -- ^ unfolding
+    -> StreamG code a c
+unfold start f = MkStreamG (\a -> SOP (Z (start a :* Nil))) steps where
+    steps :: SOP code '[ '[ b ] ]-> (Step (code c) (SOP code '[ '[ b ] ]) -> code r) -> code r
+    steps (SOP (Z (curr :* Nil))) k = f curr $ \case
         Nothing        -> k Stop
-        Just (c, next) -> k (Emit c next)
+        Just (c, next) -> k (Emit c (SOP (Z (next :* Nil))))
 
+{-
 -- |
 --
 -- @
@@ -414,11 +414,11 @@ filterPipe p =  MkStreamG (\a -> SOP (Z (C a :* Nil))) step where
     step (SOP (S (S ns)))       _ = case ns of {}
 
 -}
+-}
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
--}
 
 -- |
 --
