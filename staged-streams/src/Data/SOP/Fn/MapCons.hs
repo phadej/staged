@@ -15,6 +15,8 @@ module Data.SOP.Fn.MapCons (
     -- * Isomorphisms
     mapCons_NSNP,
     unmapCons_NSNP,
+    mapCons_SOP,
+    unmapCons_SOP,
     -- * Proxies
     prMapCons,
     -- * Constraints
@@ -50,6 +52,13 @@ unmapCons_NSNP xss = case sList :: SList xss of
         Z (x :* xs) -> (x, Z xs)
         S xss' -> fmap S (unmapCons_NSNP xss') -- fmap maps over snd of a pair
 
+mapCons_SOP :: f x -> SOP f xss -> SOP f (MapCons x xss)
+mapCons_SOP x (SOP xss) = SOP (mapCons_NSNP x xss)
+
+unmapCons_SOP :: forall f x xss. SListI2 xss => SOP f (MapCons x xss) -> (f x, SOP f xss)
+unmapCons_SOP (SOP xss) = case unmapCons_NSNP xss of
+    ~(x, xss') -> (x, SOP xss')
+    
 -------------------------------------------------------------------------------
 -- Proxies
 -------------------------------------------------------------------------------

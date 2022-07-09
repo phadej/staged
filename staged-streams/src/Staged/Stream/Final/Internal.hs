@@ -29,11 +29,12 @@ import Data.Proxy          (Proxy (..))
 import qualified GHC.Generics as GHC
 import Data.Type.Equality ((:~:) (..))
 
-import Data.SOP ((:.:) (..), K (..), SList (..), SListI2, SListI, sList, SOP (..), NP (..), NS (..), unSOP)
+import Data.SOP (Top,(:.:) (..), K (..), SList (..), SListI2, SListI, sList, SOP (..), NP (..), NS (..), unSOP)
 import Data.SOP.NP (cmap_NP, sequence'_NP, map_NP)
 import Data.SOP.NS (collapse_NS, liftA2_NS)
 
 import Data.SOP.Fn.Append
+import Data.SOP.Fn.MapCons
 import Data.SOP.Fn.ConcatMapAppend
 
 import Symantics
@@ -151,23 +152,21 @@ instance forall k (code :: k -> Type) (code' :: k -> Type) (a :: k). code ~ code
 -- | Type of 'fix'. Fixedpoint of @a@.
 type Fixedpoint a = (a -> a) -> a
 
-termLetRec_SOP :: forall xss b code. (SListI2 xss, TermLetRec code, TermFun code) => Fixedpoint (SOP code xss -> code b)
+termLetRec_SOP
+    :: forall xss b code. (SListI2 xss, TermLetRec code, TermFun code)
+    => Fixedpoint (SOP code xss -> code b)
 termLetRec_SOP f x = termLetRec_NSNP_alt (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
 
-{-
--- | 'sletrec_SOP' with additional argument in each state.
-sletrec1_SOP
-    :: forall xss b c. SListI2 xss => Fixedpoint (SOP C xss -> C b -> C c)
-sletrec1_SOP f sop b =
-    allFlattenCode (Proxy :: Proxy (C b, SOP C xss))
-    $ sletrec_SOP
-        (\rec x -> case bwd x of
-            ~(b', sop') -> f (\sop'' b'' -> rec (fwd (b'', sop''))) sop' b')
-        (fwd (b, sop))
-  where
-    fwd = from' @(C b, SOP C xss)
-    bwd = to'   @(C b, SOP C xss)
--}
+-- | 'termLetRec_SOP' with additional argument in each state.
+termLetRec1_SOP
+    :: forall xss b c code. (SListI2 xss, TermLetRec code, TermFun code)
+    => Fixedpoint (SOP code xss -> code b -> code c)
+termLetRec1_SOP f sop b =
+    allMapCons (Proxy @Top) (Proxy @b) (Proxy @xss) $
+    termLetRec_SOP
+        (\rec x -> case unmapCons_SOP x of
+            ~(b', sop') -> f (\sop'' b'' -> rec (mapCons_SOP b'' sop'')) sop' b')
+        (mapCons_SOP b sop)
 
 -------------------------------------------------------------------------------
 -- Alternative sletrec_NSNP using sletrecH

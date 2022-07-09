@@ -418,26 +418,26 @@ filterPipe p =  MkStreamG (\a -> SOP (Z (C a :* Nil))) step where
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
+-}
 
 -- |
 --
 -- @
 -- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> 'Stream' a b -> SpliceQ r
 -- @
-foldl :: forall r a b fn init start. (IsCode Q r init, IsCode Q a start, ToCodeFn2 Q r b r fn)
-    => fn -> init -> start -> StreamG a b -> SpliceQ r
+foldl :: forall r a b code. (TermLetRec code, TermFun code)
+    => (code r -> code b -> code r) -> code r -> code a -> StreamG code a b -> code r
 foldl op e z (MkStreamG xs steps0) =
-    fromCode $ sletrec1_SOP (body steps0) (xs (toCode z)) (toCode e)
+    termLetRec1_SOP (body steps0) (xs z) e
   where
     body
-        :: (SOP C xss -> (Step (C b) (SOP C xss) -> C r) -> C r)
-        -> (SOP C xss -> C r -> C r)
-        -> (SOP C xss -> C r -> C r)
+        :: (SOP code xss -> (Step (code b) (SOP code xss) -> code r) -> code r)
+        -> (SOP code xss -> code r -> code r)
+        -> (SOP code xss -> code r -> code r)
     body steps loop curr acc = steps curr $ \case
         Stop        -> acc
         Skip   next -> loop next acc
-        Emit b next -> loop next (toFn2 op acc b)
--}
+        Emit b next -> loop next (op acc b)
 
 -- |
 --
