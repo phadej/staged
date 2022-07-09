@@ -9,7 +9,7 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 module Staged.Stream.Final.Combinators {- (
     -- * Construction
     singleton,
@@ -46,7 +46,7 @@ module Staged.Stream.Final.Combinators {- (
 import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
 -- import Prelude (undefined)
 
-import Data.SOP (SOP (..), NS (..), NP (..), SListI2, I (..), unI)
+import Data.SOP (SOP (..), unZ, NS (..), NP (..), SListI2, I (..), unI)
 import Data.Kind (Type)
 import Language.Haskell.TH.Syntax (Code, Quote)
 import Data.Proxy (Proxy (..))
@@ -96,21 +96,27 @@ unfold
     => (code a -> code b)
     -> (forall r. code b -> (Maybe (code c, code b) -> code r) -> code r) -- ^ unfolding
     -> StreamG code a c
-unfold start f = MkStreamG (\a -> SOP (Z (start a :* Nil))) steps where
+unfold start f = MkStreamG (singSOP . start) steps where
     steps :: SOP code '[ '[ b ] ]-> (Step (code c) (SOP code '[ '[ b ] ]) -> code r) -> code r
-    steps (SOP (Z (curr :* Nil))) k = f curr $ \case
+    steps (unsingSOP -> curr) k = f curr $ \case
         Nothing        -> k Stop
-        Just (c, next) -> k (Emit c (SOP (Z (next :* Nil))))
+        Just (c, next) -> k (Emit c (singSOP next))
 
-{-
 -- |
 --
 -- @
 -- 'iterate' :: (C a -> C a) -> 'Stream' a a
 -- @
-iterate :: (ToCodeFn Q a a endo) => endo -> StreamG a a
-iterate f = mkStreamG id $ \curr k -> k (Emit curr (toFn f curr))
+iterate :: (code a -> code a) -> StreamG code a a
+iterate f = MkStreamG singSOP $ \(unsingSOP -> curr) k -> k (Emit curr (singSOP (f curr)))
 
+singSOP :: f a -> SOP f '[ '[ a ] ]
+singSOP x = SOP (Z (x :* Nil))
+
+unsingSOP :: SOP f '[ '[ a ] ] -> f a
+unsingSOP (SOP (unZ -> (x :* Nil))) = x
+
+{-
 -- |
 --
 -- @
