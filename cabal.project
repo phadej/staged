@@ -1,6 +1,6 @@
 with-compiler: ghc-9.0.1
 
--- packages: staged-commons
+packages: staged-commons
 -- packages: staged-examples
 packages: staged-streams
 -- packages: staged-streams-resourcet
