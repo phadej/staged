@@ -232,7 +232,7 @@ type family Curry (term :: k -> Type) (r :: k) (xs :: [k]) :: k where
 slam_NP' :: forall xs r code. (SListI xs, SymFun code) => (NP code xs -> code r) -> code (Curry code r xs)
 slam_NP' f = case sList :: SList xs of
     SNil  -> f Nil
-    SCons -> lam_ $ \x -> slam_NP' (f . (x :*))
+    SCons -> lam' $ \x -> slam_NP' (f . (x :*))
 
 -- N-ary apply
 sapply_NP :: forall xs r code. (SListI xs, SymFun code) => code (Curry code r xs) -> NP code xs -> code r
