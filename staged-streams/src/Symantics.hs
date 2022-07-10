@@ -12,6 +12,7 @@ import Control.Monad.Fix           (MonadFix)
 import Data.Coerce                 (coerce)
 import Data.GADT.Compare           (GCompare)
 import Data.Kind                   (Type)
+import Numeric.Natural (Natural)
 import Data.Proxy                  (Proxy (..))
 import Data.SOP                    (I (..), unI)
 import Language.Haskell.TH.Syntax  (Code, Quote)
@@ -113,6 +114,42 @@ instance Quote q => SymList (Code q) where
     caseList_ xs n c = [|| case $$xs of
         []   -> $$n
         y:ys -> $$(c [|| y ||] [|| ys ||])
+        ||]
+
+-------------------------------------------------------------------------------
+-- Nat(ural)
+-------------------------------------------------------------------------------
+
+class SymNat (expr :: k -> Type) where
+    type Nat_ expr :: k
+
+    zero_ :: expr (Nat_ expr)
+    succ_ :: expr (Nat_ expr) -> expr (Nat_ expr)
+
+    caseNat_
+        :: expr (Nat_ expr)
+        -> expr r
+        -> (expr (Nat_ expr) -> expr r)
+        -> expr r
+
+instance SymNat I where
+    type Nat_ I = Natural
+
+    zero_ = I 0
+    succ_ (I n) = I (1 + n)
+
+    caseNat_ (I 0) z _ = z
+    caseNat_ (I n) _ s = s (I (n - 1))
+
+instance Quote q => SymNat (Code q) where
+    type Nat_ (Code q) = Natural
+
+    zero_ = [|| 0 :: Natural ||]
+    succ_ n = [|| 1 + $$n ||]
+
+    caseNat_ n z s = [|| case $$n of
+        0 -> $$z
+        _ -> let n' = $$n - 1 in $$(s [|| n' ||])
         ||]
 
 -------------------------------------------------------------------------------

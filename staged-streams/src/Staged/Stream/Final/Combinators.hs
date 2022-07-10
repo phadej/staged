@@ -16,14 +16,14 @@ module Staged.Stream.Final.Combinators (
     fromList,
     unfold,
     iterate,
---    replicate,
+    replicate,
     -- * Transformations
     map,
 --    mapWithInput,
     lmap,
     filter,
---    take,
---    drop,
+    take,
+    drop,
     -- * Append
     append,
     empty,
@@ -43,7 +43,7 @@ module Staged.Stream.Final.Combinators (
     toList,
     ) where
 
-import Prelude (($), Maybe (..), (.))
+import Prelude (($), Maybe (..), (.), id)
 
 import Data.Monoid (Ap (..))
 import Data.SOP (SOP)
@@ -60,11 +60,26 @@ import Staged.Stream.Final.Type
 import Staged.Stream.Final.Convenience
 import Staged.Stream.Final.Internal
 
+-- $setup
+-- >>> :set -XTemplateHaskell
+--
+-- >>> import Control.Category ((>>>))
+-- >>> import Data.SOP (I (..), unI)
+-- >>> import Prelude (id, ($), (<$>))
+-- >>> import qualified Language.Haskell.TH.Syntax as TH
+-- >>> import qualified Language.Haskell.TH.Ppr as TH
+--
+-- >>> import Symantics
+--
+
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
 
 -- |
+--
+-- >>> toList unit_ (singleton (I 'x'))
+-- I "x"
 --
 singleton :: forall {k} (b :: k) (a :: k) (code :: k -> Type). code b -> Stream code a b
 singleton b = mkStream start step where
@@ -77,9 +92,9 @@ singleton b = mkStream start step where
 
 -- |
 --
--- @
--- 'fromList' :: (C a -> C [b]) -> 'Stream' a b
--- @
+-- >>> toList (I "foobar") (fromList id)
+-- I "foobar"
+--
 fromList :: forall a b code. SymList code => (code a -> code (List_ code b)) -> Stream code a b
 fromList f = unfold f $ \bs k -> caseList_ bs
     (k Nothing)
@@ -109,17 +124,16 @@ unfold start f = MkStream (singSOP . start) steps where
 iterate :: (code a -> code a) -> Stream code a a
 iterate f = MkStream singSOP $ \(unsingSOP -> curr) k -> k (Emit curr (singSOP (f curr)))
 
-
-
-{-
 -- |
 --
--- @
--- 'replicate' :: C Int -> C a -> 'Stream' i a
--- @
-replicate :: (IsCode Q a ca, IsCode Q Int ci) => ci -> ca -> Stream i a
-replicate i a = take i (repeat a)
--}
+-- >>> toList (I 'x') $ replicate (I 5)
+-- I "xxxxx"
+--
+-- >>> toList (I "xy") $ fromList id >>> replicate (I 3)
+-- I "xxxyyy"
+--
+replicate :: SymNat code => code (Nat_ code) -> Stream code a a
+replicate n = take n repeat
 
 -------------------------------------------------------------------------------
 -- Transformations
@@ -175,47 +189,68 @@ filter p (MkStream s0 steps0) = MkStream s0 (go steps0) where
             (k (Emit a s'))
             (k (Skip s'))
 
-{-
 -------------------------------------------------------------------------------
 -- Take and drop
 -------------------------------------------------------------------------------
 
 -- |
 --
--- @
--- 'take' :: C Int -> 'Stream' a b -> 'Stream' a b
--- @
-take :: IsCode Q Int n => n -> Stream a b -> Stream a b
-take n (MkStream start steps) =
-    mkStream (\a -> (toCode [|| 0 ||], start a)) $ \(i, xss) k -> steps xss $ \case
+-- >>> toList (I 'x') $ take (I 5) repeat
+-- I "xxxxx"
+--
+-- >>> TH.ppr <$> TH.unTypeCode (toList [|| 'x' ||] (take [|| 5 ||] repeat))
+-- (let _letrec_0 = \(!arg_1) -> \(!arg_2) -> case arg_1 of
+--                                                0 -> GHC.Types.[]
+--                                                _ -> let n'_3 = arg_1 GHC.Num.- 1
+--                                                      in arg_2 GHC.Types.: _letrec_0 n'_3 arg_2
+--   in _letrec_0) 5 'x'
+--
+-- >>> $$(toList [|| 'x' ||] (take [|| 5 ||] repeat))
+-- "xxxxx"
+--
+take :: SymNat expr => expr (Nat_ expr) -> Stream expr a b -> Stream expr a b
+take n0 (MkStream start steps) =
+    mkStream (\a -> Take (Ap n0) (start a)) $ \(Take n xss) k -> steps xss $ \case
         Stop        -> k Stop
-        Skip   xss' -> k (Skip (i, xss'))
-        Emit b xss' -> sIfThenElse
-            (toCode [|| (<) ||] @@ i @@ toCode n)
-            (k (Emit b (toCode [|| (1 +) ||] @@ i, xss')))
+        Skip   xss' -> k (Skip (Take n xss'))
+        Emit b xss' -> caseNat_ (getAp n)
             (k Stop)
+            (\n' -> k (Emit b (Take (Ap n') xss')))
 
 -- |
 --
--- @
--- 'drop' :: C Int -> 'Stream' a b -> 'Stream' a b
--- @
-drop :: IsCode Q Int n => n -> Stream a b -> Stream a b
+-- >>> toList (I "foobar") (drop (I 3) (fromList id))
+-- I "bar"
+--
+-- >>> TH.ppr <$> TH.unTypeCode (toList [|| "foobar" ||] (drop [|| 3 ||] (fromList id)))
+-- (let {_letrec_0 = \(!arg_1) -> \(!arg_2) -> case arg_2 of
+--                                                 GHC.Types.[] -> GHC.Types.[]
+--                                                 y_3 GHC.Types.: ys_4 -> case arg_1 of
+--                                                                             0 -> y_3 GHC.Types.: _letrec_5 ys_4
+--                                                                             _ -> let n'_6 = arg_1 GHC.Num.- 1
+--                                                                                   in _letrec_0 n'_6 ys_4;
+--       _letrec_5 = \(!arg_7) -> case arg_7 of
+--                                    GHC.Types.[] -> GHC.Types.[]
+--                                    y_8 GHC.Types.: ys_9 -> y_8 GHC.Types.: _letrec_5 ys_9}
+--   in _letrec_0) 3 "foobar"
+--
+-- >>> $$(toList [|| "foobar" ||] (drop [|| 3 ||] (fromList id)))
+-- "bar"
+--
+drop :: SymNat expr => expr (Nat_ expr) -> Stream expr a b -> Stream expr a b
 drop n (MkStream start steps) =
-    mkStream (\a -> DropL (toCode n) (start a)) $ \step k -> case step of
+    mkStream (\a -> DropL (Ap n) (start a)) $ \step k -> case step of
         DropL m xss -> steps xss $ \case
             Stop        -> k Stop
             Skip   xss' -> k (Skip (DropL m xss'))
-            Emit b xss' -> sIfThenElse
-                (toCode [|| (0 <) ||] @@ m)
-                (k (Skip   (DropL (toCode [|| subtract 1 ||] @@ m) xss')))
+            Emit b xss' -> caseNat_ (getAp m)
                 (k (Emit b (DropR xss')))
+                (\m' -> k (Skip   (DropL (Ap m') xss')))
 
         DropR xss -> steps xss $ \case
             Stop        -> k Stop
             Skip   xss' -> k (Skip   (DropR xss'))
             Emit b xss' -> k (Emit b (DropR xss'))
--}
 
 -------------------------------------------------------------------------------
 -- Append
@@ -272,11 +307,8 @@ zipWith h (MkStream start0 steps0) (MkStream start1 steps1) =
 
 -- |
 --
--- @
--- 'repeat' :: C a -> 'Stream' i a
--- @
-repeat :: SymUnit code => code a -> Stream code i a
-repeat a = MkStream (\_ -> singSOP unit_) $ \s k -> k (Emit a s)
+repeat :: Stream code a a
+repeat = iterate id
 
 {-
 -------------------------------------------------------------------------------

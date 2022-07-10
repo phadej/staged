@@ -23,6 +23,8 @@ data Two code
     | Two1
   deriving (GHC.Generic)
 
+
+
 -- | For @>>>@ combinator
 data Comp xss yss code
     = CompL (SOP code xss)
@@ -55,9 +57,15 @@ data BFS a xss code
     | BfsStep (code [a]) (SOP code xss)
   deriving (GHC.Generic)
 
-data Drop xss code
-    = DropL (code Int) (SOP code xss)
-    | DropR            (SOP code xss)
+-- | For @take@ combinator
+data Take a xss code
+    = Take (Ap code a) (SOP code xss)
+  deriving (GHC.Generic)
+
+-- | For @drop@ combinator
+data Drop a xss code
+    = DropL (Ap code a) (SOP code xss)
+    | DropR             (SOP code xss)
   deriving (GHC.Generic)
 
 -------------------------------------------------------------------------------
