@@ -81,7 +81,7 @@ singleton b = mkStreamG start step where
 -- @
 -- 'fromList' :: (C a -> C [b]) -> 'Stream' a b
 -- @
-fromList :: forall a b code. TermList code => (code a -> code (TyList code b)) -> StreamG code a b
+fromList :: forall a b code. SymList code => (code a -> code (TyList code b)) -> StreamG code a b
 fromList f = unfold f $ \bs k -> termCaseList bs
     (k Nothing)
     (\b bs' -> k (Just (b, bs')))
@@ -92,7 +92,7 @@ fromList f = unfold f $ \bs k -> termCaseList bs
 -- 'unfold' :: (C a -> C b) -> (C b -> CPS (Maybe (C c, C b))) -> 'Stream' a c
 -- @
 unfold
-    :: forall a b c code. (TermList code)
+    :: forall a b c code. (SymList code)
     => (code a -> code b)
     -> (forall r. code b -> (Maybe (code c, code b) -> code r) -> code r) -- ^ unfolding
     -> StreamG code a c
@@ -167,7 +167,7 @@ lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . toFn f) steps0
 -- @
 -- 'filter' :: (C b -> C Bool) -> 'Stream' a b -> 'Stream' a b
 -- @
-filter :: forall a b term. TermBool term => (term b -> term (TyBool term)) -> StreamG term a b -> StreamG term a b
+filter :: forall a b term. SymBool term => (term b -> term (TyBool term)) -> StreamG term a b -> StreamG term a b
 filter p (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
     go :: (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
        -> (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
@@ -431,7 +431,7 @@ filterPipe p =  MkStreamG (\a -> SOP (Z (C a :* Nil))) step where
 -- @
 -- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> 'Stream' a b -> SpliceQ r
 -- @
-foldl :: forall r a b code. (TermLetRec code, TermFun code)
+foldl :: forall r a b code. (SymLetRec code, SymFun code)
     => (code r -> code b -> code r) -> code r -> code a -> StreamG code a b -> code r
 foldl op e z (MkStreamG xs steps0) =
     termLetRec1_SOP (body steps0) (xs z) e
@@ -447,7 +447,7 @@ foldl op e z (MkStreamG xs steps0) =
 
 -- |
 --
-toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (TermLetRec expr, TermFun expr, TermList expr) => expr a -> StreamG expr a b -> expr (TyList expr b)
+toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (SymLetRec expr, SymFun expr, SymList expr) => expr a -> StreamG expr a b -> expr (TyList expr b)
 toList a (MkStreamG start steps0) =
     termLetRec_SOP (body steps0) (start a)
   where

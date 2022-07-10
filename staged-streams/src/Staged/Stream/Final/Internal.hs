@@ -37,6 +37,7 @@ import Data.SOP.Fn.Append
 import Data.SOP.Fn.MapCons
 import Data.SOP.Fn.ConcatMapAppend
 
+import Data.GADT.Compare
 import Symantics
 
 -- Use Ap
@@ -153,13 +154,13 @@ instance forall k (code :: k -> Type) (code' :: k -> Type) (a :: k). code ~ code
 type Fixedpoint a = (a -> a) -> a
 
 termLetRec_SOP
-    :: forall xss b code. (SListI2 xss, TermLetRec code, TermFun code)
+    :: forall xss b code. (SListI2 xss, SymLetRec code, SymFun code)
     => Fixedpoint (SOP code xss -> code b)
 termLetRec_SOP f x = termLetRec_NSNP_alt (\y z -> f (y . unSOP) (SOP z)) (unSOP x)
 
 -- | 'termLetRec_SOP' with additional argument in each state.
 termLetRec1_SOP
-    :: forall xss b c code. (SListI2 xss, TermLetRec code, TermFun code)
+    :: forall xss b c code. (SListI2 xss, SymLetRec code, SymFun code)
     => Fixedpoint (SOP code xss -> code b -> code c)
 termLetRec1_SOP f sop b =
     allMapCons (Proxy @Top) (Proxy @b) (Proxy @xss) $
@@ -184,10 +185,10 @@ termLetRec1_SOP f sop b =
 -- (The generated code looks just horrible).
 --
 termLetRec_NSNP_alt
-    :: forall {k} (xss :: [[k]]) b code. (SListI2 xss, TermLetRec code, TermFun code)
+    :: forall {k} (xss :: [[k]]) b code. (SListI2 xss, SymLetRec code, SymFun code)
     => Fixedpoint (NS (NP code) xss -> code b)
 termLetRec_NSNP_alt body args = withNSNP args $ \el f ->
-    f (termLetRecH eqElem loopid el)
+    f (termLetRecH geq loopid el)
   where
     -- because of simplified subsumption
     loopid
@@ -225,13 +226,13 @@ type family Curry (term :: k -> Type) (r :: k) (xs :: [k]) :: k where
     Curry term r (x : xs) = TyFun term x (Curry term r xs)
 
 -- N-ary lambda
-slam_NP' :: forall xs r code. (SListI xs, TermFun code) => (NP code xs -> code r) -> code (Curry code r xs)
+slam_NP' :: forall xs r code. (SListI xs, SymFun code) => (NP code xs -> code r) -> code (Curry code r xs)
 slam_NP' f = case sList :: SList xs of
     SNil  -> f Nil
     SCons -> termLam $ \x -> slam_NP' (f . (x :*))
 
 -- N-ary apply
-sapply_NP :: forall xs r code. (SListI xs, TermFun code) => code (Curry code r xs) -> NP code xs -> code r
+sapply_NP :: forall xs r code. (SListI xs, SymFun code) => code (Curry code r xs) -> NP code xs -> code r
 sapply_NP = case sList :: SList xs of
     SNil  -> \r Nil       -> r
     SCons -> \f (x :* xs) -> sapply_NP (termApp f x) xs
@@ -241,10 +242,17 @@ data Elem :: (k -> Type) -> k -> [[k]] -> k -> Type where
     Here  :: SListI xs         => Elem code r (xs ': xss) (Curry code r xs)
     There :: Elem code r xss f -> Elem code r (ys ': xss) f
 
-eqElem :: Elem code b xss x -> Elem code b xss y -> Maybe (x :~: y)
-eqElem Here      Here      = Just Refl
-eqElem (There x) (There y) = eqElem x y
-eqElem _         _         = Nothing
+instance GEq (Elem expr r xss) where
+    geq Here      Here      = Just Refl
+    geq (There x) (There y) = geq x y
+    geq Here      (There _) = Nothing
+    geq (There _) Here      = Nothing
+
+instance GCompare (Elem expr r xss) where
+    gcompare Here      Here      = GEQ
+    gcompare (There x) (There y) = gcompare x y
+    gcompare Here      (There _) = GLT
+    gcompare (There _) Here      = GGT
 
 -- Pair of "tycon" and saturated application.
 data Pair (code :: k -> Type) (b :: k) (xss :: [[k]]) (xs :: [k]) where
@@ -252,7 +260,7 @@ data Pair (code :: k -> Type) (b :: k) (xss :: [[k]]) (xs :: [k]) where
          -> (code r -> NP code xs -> code b)
          -> Pair code b xss xs
 
-pairs :: forall {k} xss (b :: k) code. (SListI2 xss, TermFun code) => NP (Pair code b xss) xss
+pairs :: forall {k} xss (b :: k) code. (SListI2 xss, SymFun code) => NP (Pair code b xss) xss
 pairs = case sList :: SList xss of
     SNil  -> Nil
     SCons -> Pair Here sapply_NP :* map_NP shiftPair pairs
@@ -262,6 +270,6 @@ shiftPair (Pair el f) = Pair (There el) f
 
 newtype FunTo code b xs = FunTo (NP code xs -> code b)
 
-withNSNP :: (SListI2 xss, TermFun code) => NS (NP code) xss -> (forall r. Elem code b xss r -> (code r -> code b) -> res) -> res
+withNSNP :: (SListI2 xss, SymFun code) => NS (NP code) xss -> (forall r. Elem code b xss r -> (code r -> code b) -> res) -> res
 withNSNP (Z np) k = k Here (`sapply_NP` np)
 withNSNP (S ns) k = withNSNP ns (\el f -> k (There el) f)
