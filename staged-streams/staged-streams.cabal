@@ -27,13 +27,7 @@ maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
 license:       BSD-3-Clause
 license-file:  LICENSE
 tested-with:
-  GHC ==8.0.2
-   || ==8.2.2
-   || ==8.4.4
-   || ==8.6.5
-   || ==8.8.4
-   || ==8.10.4
-   || ==9.0.1
+  GHC ==9.0.2
 
 source-repository head
   type:     git

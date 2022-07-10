@@ -1,4 +1,5 @@
 {-# LANGUAGE InstanceSigs        #-}
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -21,16 +22,16 @@ import Language.Haskell.TTH.LetRec (letrecH)
 -------------------------------------------------------------------------------
 
 class SymLet (expr :: k -> Type) where
-    let_
-        :: expr a
-        -> (expr a -> expr b)
-        -> expr b
+    let_ :: expr a -> (expr a -> expr b) -> expr b
+    let' :: expr a -> (expr a -> expr b) -> expr b
 
 instance SymLet I where
     let_ t body = coerce body t
+    let' t body = coerce body t
 
 instance Quote q => SymLet (Code q) where
-    let_ t body = [|| let _letb = $$t in $$(body [|| _letb ||]) ||]
+    let_ t body = [|| let  _letb = $$t in $$(body [|| _letb ||]) ||]
+    let' t body = [|| let !_letb = $$t in $$(body [|| _letb ||]) ||]
 
 -------------------------------------------------------------------------------
 -- letrec
@@ -122,18 +123,21 @@ class SymFun (expr :: k -> Type) where
     type Arr_ expr (a :: k) (b :: k) :: k
 
     lam_ :: (expr a -> expr b) -> expr (Arr_ expr a b)
+    lam' :: (expr a -> expr b) -> expr (Arr_ expr a b)
     app_ :: expr (Arr_ expr a b) -> expr a -> expr b
 
 instance SymFun I where
     type Arr_ I a b = a -> b
 
     lam_ = coerce
+    lam' = coerce
     app_ f x = coerce f x
 
 instance Quote q => SymFun (Code q) where
     type Arr_ (Code q) a b = a -> b
 
-    lam_ f = [|| \arg -> $$(f [|| arg ||]) ||]
+    lam_ f = [|| \  arg -> $$(f [|| arg ||]) ||]
+    lam' f = [|| \ !arg -> $$(f [|| arg ||]) ||]
     app_ f x = [|| $$f $$x ||]
 
 -------------------------------------------------------------------------------

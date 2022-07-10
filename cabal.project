@@ -1,11 +1,11 @@
 with-compiler: ghc-9.0.1
 
-packages: staged-commons
-packages: staged-examples
+-- packages: staged-commons
+-- packages: staged-examples
 packages: staged-streams
-packages: staged-streams-resourcet
-packages: staged-kleene
-packages: staged-streams-unicode
+-- packages: staged-streams-resourcet
+-- packages: staged-kleene
+-- packages: staged-streams-unicode
 
 tests: True
 
