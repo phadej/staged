@@ -17,7 +17,7 @@
 -- | More convenient (than direct) 'Stream' creation.
 module Staged.Stream.Final.Convenience (
     -- * Convenience helpers
-    mkStreamG,
+    mkStream,
     -- * Constraint
     FlattenCode,
     ) where
@@ -49,13 +49,13 @@ import Staged.Stream.Final.Type
 -- /Note:/ you should prefer using 'Staged.Stream.Combinators.traverse' combinator if
 -- possible, as it doesn't make state space bigger.
 --
-mkStreamG
+mkStream
     :: forall {k} (code :: k -> Type) (a :: k) (b :: k) (s :: (k -> Type) -> Type) (xss :: [[k]]). FlattenCode s code xss
     => (code a -> s code)                                                  -- ^ start state
     -> (forall r. s code -> (Step (code b) (s code) -> code r) -> code r)  -- ^ step function
-    -> StreamG code a b
-mkStreamG start0 step0 =
-    allFlattenCode (Proxy @s) (Proxy @code) $ MkStreamG start step
+    -> Stream code a b
+mkStream start0 step0 =
+    allFlattenCode (Proxy @s) (Proxy @code) $ MkStream start step
   where
     start :: code a -> SOP code xss
     start = from' . start0

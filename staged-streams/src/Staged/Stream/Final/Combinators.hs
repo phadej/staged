@@ -66,8 +66,8 @@ import Staged.Stream.Final.Internal
 
 -- |
 --
-singleton :: forall {k} (b :: k) (a :: k) (code :: k -> Type). code b -> StreamG code a b
-singleton b = mkStreamG start step where
+singleton :: forall {k} (b :: k) (a :: k) (code :: k -> Type). code b -> Stream code a b
+singleton b = mkStream start step where
     start :: code a -> Two code
     start _ = Two1
 
@@ -80,7 +80,7 @@ singleton b = mkStreamG start step where
 -- @
 -- 'fromList' :: (C a -> C [b]) -> 'Stream' a b
 -- @
-fromList :: forall a b code. SymList code => (code a -> code (List_ code b)) -> StreamG code a b
+fromList :: forall a b code. SymList code => (code a -> code (List_ code b)) -> Stream code a b
 fromList f = unfold f $ \bs k -> caseList_ bs
     (k Nothing)
     (\b bs' -> k (Just (b, bs')))
@@ -94,8 +94,8 @@ unfold
     :: forall a b c code. (SymList code)
     => (code a -> code b)
     -> (forall r. code b -> (Maybe (code c, code b) -> code r) -> code r) -- ^ unfolding
-    -> StreamG code a c
-unfold start f = MkStreamG (singSOP . start) steps where
+    -> Stream code a c
+unfold start f = MkStream (singSOP . start) steps where
     steps :: SOP code '[ '[ b ] ]-> (Step (code c) (SOP code '[ '[ b ] ]) -> code r) -> code r
     steps (unsingSOP -> curr) k = f curr $ \case
         Nothing        -> k Stop
@@ -106,8 +106,8 @@ unfold start f = MkStreamG (singSOP . start) steps where
 -- @
 -- 'iterate' :: (C a -> C a) -> 'Stream' a a
 -- @
-iterate :: (code a -> code a) -> StreamG code a a
-iterate f = MkStreamG singSOP $ \(unsingSOP -> curr) k -> k (Emit curr (singSOP (f curr)))
+iterate :: (code a -> code a) -> Stream code a a
+iterate f = MkStream singSOP $ \(unsingSOP -> curr) k -> k (Emit curr (singSOP (f curr)))
 
 
 
@@ -117,7 +117,7 @@ iterate f = MkStreamG singSOP $ \(unsingSOP -> curr) k -> k (Emit curr (singSOP 
 -- @
 -- 'replicate' :: C Int -> C a -> 'Stream' i a
 -- @
-replicate :: (IsCode Q a ca, IsCode Q Int ci) => ci -> ca -> StreamG i a
+replicate :: (IsCode Q a ca, IsCode Q Int ci) => ci -> ca -> Stream i a
 replicate i a = take i (repeat a)
 -}
 
@@ -127,8 +127,8 @@ replicate i a = take i (repeat a)
 
 -- |
 --
-map :: forall a b c term. (term b -> term c) -> StreamG term a b -> StreamG term a c
-map f (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
+map :: forall a b c term. (term b -> term c) -> Stream term a b -> Stream term a c
+map f (MkStream s0 steps0) = MkStream s0 (go steps0) where
     go :: (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
        -> (SOP term xss -> (Step (term c) (SOP term xss) -> term r) -> term r)
     go steps s k = steps s $ \case
@@ -142,9 +142,9 @@ map f (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
 -- @
 -- 'mapWithInput' :: (C a -> C b -> C c) -> 'Stream' a b -> 'Stream' a c
 -- @
-mapWithInput :: forall a b c abc. ToCodeFn2 Q a b c abc => abc -> StreamG a b -> StreamG a c
-mapWithInput f (MkStreamG s0 steps0) =
-    mkStreamG (\a -> (a, s0 a)) $ \(a, curr) k -> steps0 curr $ \case
+mapWithInput :: forall a b c abc. ToCodeFn2 Q a b c abc => abc -> Stream a b -> Stream a c
+mapWithInput f (MkStream s0 steps0) =
+    mkStream (\a -> (a, s0 a)) $ \(a, curr) k -> steps0 curr $ \case
         Stop        -> k Stop
         Skip   next -> k (Skip (a, next))
         Emit b next -> k (Emit (toFn2 f a b) (a, next))
@@ -155,16 +155,16 @@ mapWithInput f (MkStreamG s0 steps0) =
 -- @
 -- 'lmap' :: (C a -> C b) -> 'Stream' b c -> 'Stream' a c
 -- @
-lmap :: forall a b c code. (code a -> code b) -> StreamG code b c -> StreamG code a c
-lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . f) steps0
+lmap :: forall a b c code. (code a -> code b) -> Stream code b c -> Stream code a c
+lmap f (MkStream s0 steps0) = MkStream (s0 . f) steps0
 
 -- |
 --
 -- @
 -- 'filter' :: (C b -> C Bool) -> 'Stream' a b -> 'Stream' a b
 -- @
-filter :: forall a b term. SymBool term => (term b -> term (Bool_ term)) -> StreamG term a b -> StreamG term a b
-filter p (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
+filter :: forall a b term. SymBool term => (term b -> term (Bool_ term)) -> Stream term a b -> Stream term a b
+filter p (MkStream s0 steps0) = MkStream s0 (go steps0) where
     go :: (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
        -> (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
     go steps s k = steps s $ \case
@@ -185,9 +185,9 @@ filter p (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
 -- @
 -- 'take' :: C Int -> 'Stream' a b -> 'Stream' a b
 -- @
-take :: IsCode Q Int n => n -> StreamG a b -> StreamG a b
-take n (MkStreamG start steps) =
-    mkStreamG (\a -> (toCode [|| 0 ||], start a)) $ \(i, xss) k -> steps xss $ \case
+take :: IsCode Q Int n => n -> Stream a b -> Stream a b
+take n (MkStream start steps) =
+    mkStream (\a -> (toCode [|| 0 ||], start a)) $ \(i, xss) k -> steps xss $ \case
         Stop        -> k Stop
         Skip   xss' -> k (Skip (i, xss'))
         Emit b xss' -> sIfThenElse
@@ -200,9 +200,9 @@ take n (MkStreamG start steps) =
 -- @
 -- 'drop' :: C Int -> 'Stream' a b -> 'Stream' a b
 -- @
-drop :: IsCode Q Int n => n -> StreamG a b -> StreamG a b
-drop n (MkStreamG start steps) =
-    mkStreamG (\a -> DropL (toCode n) (start a)) $ \step k -> case step of
+drop :: IsCode Q Int n => n -> Stream a b -> Stream a b
+drop n (MkStream start steps) =
+    mkStream (\a -> DropL (toCode n) (start a)) $ \step k -> case step of
         DropL m xss -> steps xss $ \case
             Stop        -> k Stop
             Skip   xss' -> k (Skip (DropL m xss'))
@@ -221,9 +221,9 @@ drop n (MkStreamG start steps) =
 -- Append
 -------------------------------------------------------------------------------
 
-append :: forall a b term. StreamG term a b -> StreamG term a b -> StreamG term a b
-append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
-    mkStreamG (\a -> AppL (Ap a) (startL a)) $ \step k -> case step of
+append :: forall a b term. Stream term a b -> Stream term a b -> Stream term a b
+append (MkStream startL stepsL) (MkStream startR stepsR) =
+    mkStream (\a -> AppL (Ap a) (startL a)) $ \step k -> case step of
         AppL (Ap a) xss -> stepsL xss $ \case
             Stop        -> k (Skip   (AppR (startR a)))
             Skip   xss' -> k (Skip   (AppL (Ap a) xss'))
@@ -234,8 +234,8 @@ append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
             Skip   yss' -> k (Skip   (AppR yss'))
             Emit b yss' -> k (Emit b (AppR yss'))
 
-empty :: StreamG term a b
-empty = mkStreamG (\_ -> One) $ \_ k -> k Stop
+empty :: Stream term a b
+empty = mkStream (\_ -> One) $ \_ k -> k Stop
 
 {-
 -------------------------------------------------------------------------------
@@ -249,9 +249,9 @@ empty = mkStreamG (\_ -> One) $ \_ k -> k Stop
 -- @
 zipWith
     :: forall i abc a b c. ToCodeFn2 Q a b c abc
-    => abc -> StreamG i a -> StreamG i b -> StreamG i c
-zipWith h (MkStreamG start0 steps0) (MkStreamG start1 steps1) =
-    mkStreamG (\i -> ZipL (start0 i) (start1 i)) (steps steps0 steps1)
+    => abc -> Stream i a -> Stream i b -> Stream i c
+zipWith h (MkStream start0 steps0) (MkStream start1 steps1) =
+    mkStream (\i -> ZipL (start0 i) (start1 i)) (steps steps0 steps1)
   where
     steps
         :: (forall r'. SOP C xss -> (Step (C a) (SOP C xss) -> C r') -> C r')
@@ -275,8 +275,8 @@ zipWith h (MkStreamG start0 steps0) (MkStreamG start1 steps1) =
 -- @
 -- 'repeat' :: C a -> 'Stream' i a
 -- @
-repeat :: SymUnit code => code a -> StreamG code i a
-repeat a = MkStreamG (\_ -> singSOP unit_) $ \s k -> k (Emit a s)
+repeat :: SymUnit code => code a -> Stream code i a
+repeat a = MkStream (\_ -> singSOP unit_) $ \s k -> k (Emit a s)
 
 {-
 -------------------------------------------------------------------------------
@@ -292,9 +292,9 @@ repeat a = MkStreamG (\_ -> singSOP unit_) $ \s k -> k (Emit a s)
 alignWith
     :: forall i a b c ac bc abc. (ToCodeFn Q a c ac, ToCodeFn Q b c bc, ToCodeFn2 Q a b c abc)
     => ac -> bc -> abc
-    -> StreamG i a -> StreamG i b -> StreamG i c
-alignWith ac bc abc (MkStreamG start0 steps0) (MkStreamG start1 steps1) =
-    mkStreamG (\i -> AlignL (start0 i) (start1 i)) (steps steps0 steps1)
+    -> Stream i a -> Stream i b -> Stream i c
+alignWith ac bc abc (MkStream start0 steps0) (MkStream start1 steps1) =
+    mkStream (\i -> AlignL (start0 i) (start1 i)) (steps steps0 steps1)
   where
     steps
         :: (forall r'. SOP C xss -> (Step (C a) (SOP C xss) -> C r') -> C r')
@@ -333,15 +333,15 @@ alignWith ac bc abc (MkStreamG start0 steps0) (MkStreamG start1 steps1) =
 -- @
 bfsTree
     :: forall a predicate. ToCodeFn Q a Bool predicate
-    => StreamG a a    -- ^ endo-stream
+    => Stream a a    -- ^ endo-stream
     -> predicate     -- ^ whether to recurse on a produced element
-    -> StreamG a a
-bfsTree (MkStreamG start0 steps0) p = mk start0 steps0 where
+    -> Stream a a
+bfsTree (MkStream start0 steps0) p = mk start0 steps0 where
     mk  :: forall xss. SListI2 xss
         => (C a -> SOP C xss)
         -> (forall r. SOP C xss -> (Step (C a) (SOP C xss) -> C r) -> C r)
-        -> StreamG a a
-    mk start1 steps1 = mkStreamG (BfsNext . start1) steps2 where
+        -> Stream a a
+    mk start1 steps1 = mkStream (BfsNext . start1) steps2 where
         steps2  :: BFS a xss -> (Step (C a) (BFS a xss) -> C r) -> C r
         steps2 (BfsNext curr) k = steps1 curr $ \case
             Stop        -> k Stop
@@ -365,7 +365,7 @@ bfsTree (MkStreamG start0 steps0) p = mk start0 steps0 where
 -}
 
 -- | Identity.
-idPipe :: StreamG code a a
+idPipe :: Stream code a a
 idPipe = C.id
 
 {-
@@ -374,8 +374,8 @@ idPipe = C.id
 -- @
 -- 'mapPipe' :: (C a -> C b) -> 'Stream' a b
 -- @
-mapPipe :: forall a b ab. ToCodeFn Q a b ab => ab -> StreamG a b
-mapPipe f = mkStreamG start step where
+mapPipe :: forall a b ab. ToCodeFn Q a b ab => ab -> Stream a b
+mapPipe f = mkStream start step where
     start :: C a -> Maybe (C b)
     start a = Just (toFn f a)
 
@@ -385,7 +385,7 @@ mapPipe f = mkStreamG start step where
 
 {- "Raw" definition:
 
-MkStreamG (\a -> SOP (Z (C (f a) :* Nil))) step where
+MkStream (\a -> SOP (Z (C (f a) :* Nil))) step where
     step :: SOP C '[ '[b], '[]] -> (Step (C b) (SOP C ('[ '[b], '[]])) -> C r) -> C r
     step (SOP (Z (C b :* Nil))) k = k (Emit b (SOP (S (Z Nil))))
     step (SOP (S (Z Nil)))      k = k Stop
@@ -398,8 +398,8 @@ MkStreamG (\a -> SOP (Z (C (f a) :* Nil))) step where
 -- @
 -- 'filterPipe' :: (C a -> C Bool) -> 'Stream' a a
 -- @
-filterPipe :: forall a predicate. ToCodeFn Q a Bool predicate => predicate -> StreamG a a
-filterPipe p = mkStreamG Just step where
+filterPipe :: forall a predicate. ToCodeFn Q a Bool predicate => predicate -> Stream a a
+filterPipe p = mkStream Just step where
     step :: Maybe (C a) -> (Step (C a) (Maybe (C a)) -> C r) -> C r
     step Nothing  k = k Stop
     step (Just a) k = sIfThenElse
@@ -409,8 +409,8 @@ filterPipe p = mkStreamG Just step where
 
 {- "Raw" definition:
 
-filterPipe :: forall a. (C a -> C Bool) -> StreamG a a
-filterPipe p =  MkStreamG (\a -> SOP (Z (C a :* Nil))) step where
+filterPipe :: forall a. (C a -> C Bool) -> Stream a a
+filterPipe p =  MkStream (\a -> SOP (Z (C a :* Nil))) step where
     step :: SOP C '[ '[a], '[]] -> (Step (C a) (SOP C ('[ '[a], '[]])) -> C r) -> C r
     step (SOP (Z (C a :* Nil))) k = sIfThenElse
         (p a)
@@ -432,8 +432,8 @@ filterPipe p =  MkStreamG (\a -> SOP (Z (C a :* Nil))) step where
 -- 'foldl' :: (C r -> C b -> C r) -> C r -> C a -> 'Stream' a b -> SpliceQ r
 -- @
 foldl :: forall r a b code. (SymLetRec code, SymFun code)
-    => (code r -> code b -> code r) -> code r -> code a -> StreamG code a b -> code r
-foldl op e z (MkStreamG xs steps0) =
+    => (code r -> code b -> code r) -> code r -> code a -> Stream code a b -> code r
+foldl op e z (MkStream xs steps0) =
     termLetRec1_SOP (body steps0) (xs z) e
   where
     body
@@ -447,8 +447,8 @@ foldl op e z (MkStreamG xs steps0) =
 
 -- |
 --
-toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (SymLetRec expr, SymFun expr, SymList expr) => expr a -> StreamG expr a b -> expr (List_ expr b)
-toList a (MkStreamG start steps0) =
+toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (SymLetRec expr, SymFun expr, SymList expr) => expr a -> Stream expr a b -> expr (List_ expr b)
+toList a (MkStream start steps0) =
     termLetRec_SOP (body steps0) (start a)
   where
     body

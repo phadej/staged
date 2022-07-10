@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 module Staged.Stream.Final.Type (
-    StreamG (..),
+    Stream (..),
     Step (..),
     ) where
 
@@ -35,31 +35,31 @@ import Staged.Stream.Final.States
 -- Think of @'Stream' a b@ as @a -> [b]@, i.e.
 -- a machine which will produce some @b@ values when triggered by single @a@ value.
 --
-data StreamG :: (k -> Type) -> k -> k -> Type where
-    MkStreamG
+data Stream :: (k -> Type) -> k -> k -> Type where
+    MkStream
         :: SListI2 xss
         => (code a -> SOP code xss) -- ^ start function, initialize the inner state
         -> (forall r. SOP code xss -> (Step (code b) (SOP code xss) -> code r) -> code r) -- ^ step function
-        -> StreamG code a b
+        -> Stream code a b
 
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
 
-instance C.Category (StreamG code) where
+instance C.Category (Stream code) where
     id  = idStream
     (.) = flip composeStream
 
-idStream :: forall code a. StreamG code a a
-idStream = MkStreamG (\a -> SOP (Z (a :* Nil))) steps where
+idStream :: forall code a. Stream code a a
+idStream = MkStream (\a -> SOP (Z (a :* Nil))) steps where
     steps :: SOP code '[ '[a], '[]] -> (Step (code a) (SOP code '[ '[a], '[]]) -> code r) -> code r
     steps (SOP ns) k = case ns of
         Z (a :* Nil) -> k (Emit a (SOP (S (Z Nil))))
         S (Z Nil)    -> k Stop
         S (S ns')    -> case ns' of {}
 
-composeStream :: StreamG code a b -> StreamG code b c -> StreamG code a c
-composeStream (MkStreamG x0 stepX) (MkStreamG y0 stepY) = compose' x0 stepX y0 stepY
+composeStream :: Stream code a b -> Stream code b c -> Stream code a c
+composeStream (MkStream x0 stepX) (MkStream y0 stepY) = compose' x0 stepX y0 stepY
 
 compose'
     :: forall code a b c xss yss. (SListI2 xss, SListI2 yss)
@@ -67,11 +67,11 @@ compose'
     -> (forall r. SOP code xss -> (Step (code b) (SOP code xss) -> code r) -> code r)
     -> (code b -> SOP code yss)
     -> (forall r. SOP code yss -> (Step (code c) (SOP code yss) -> code r) -> code r)
-    -> StreamG code a c
+    -> Stream code a c
 compose' x0 stepsX0 y0 stepsY0
     = concatMapAppend_SListI2 prXss prYss
     $ append_SListI2 prXss (prConcatMapAppend prXss prYss)
-    $ MkStreamG z0 go0
+    $ MkStream z0 go0
   where
     prXss = Proxy :: Proxy xss
     prYss = Proxy :: Proxy yss
