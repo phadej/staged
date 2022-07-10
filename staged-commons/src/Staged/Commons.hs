@@ -297,7 +297,7 @@ sletrec f x = liftCode $ do
         memo <- S.get
         case Map.lookup y memo of
             Nothing -> do
-                name <- Trans.lift $ Compat.newName $ "_let" ++ show (Map.size memo)
+                name <- Trans.lift $ Compat.newName $ "_letrec" ++ show (Map.size memo)
                 _ <- mfix_ $ \yCode -> do
                     S.modify (Map.insert y (name, yCode))
                     f loop y
@@ -410,7 +410,7 @@ sletrecH eq f x = liftCode $ do
         memo <- S.get
         case dmapLookup eq y memo of
             Nothing -> do
-                name <- Trans.lift $ Compat.newName $ "_l" ++ show (dmapSize memo)
+                name <- Trans.lift $ Compat.newName $ "_letrec" ++ show (dmapSize memo)
                 _ <- mfix_ $ \yCode -> do
                     S.modify (dmapInsert y (NE name yCode))
                     f loop y

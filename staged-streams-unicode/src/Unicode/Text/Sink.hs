@@ -30,7 +30,7 @@ sinkText
 sinkText err len a stream = 
 #if MIN_VERSION_text(2,0,0)
    sinkPrimArray err len a (utf8encoder stream) $ \len' p ->
-   sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.ByteArray ba) 0 $$len' ||])
+   sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.ByteArray ba) 0 $$len' ||]
 #else
    sinkPrimArray err len a (utf16encoder stream) $ \len' p ->
    sreturn [|| case $$p of P.PrimArray ba -> T.Text (T.Array ba) 0 $$len' ||]

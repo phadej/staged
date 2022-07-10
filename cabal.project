@@ -1,11 +1,11 @@
 with-compiler: ghc-9.0.1
 
 packages: staged-commons
-packages: staged-examples
+-- packages: staged-examples
 packages: staged-streams
-packages: staged-streams-resourcet
-packages: staged-kleene
-packages: staged-streams-unicode
+-- packages: staged-streams-resourcet
+-- packages: staged-kleene
+-- packages: staged-streams-unicode
 
 tests: True
 
@@ -19,3 +19,5 @@ allow-newer: kleene:base
 allow-newer: range-set-list:base
 allow-newer: step-function:base
 allow-newer: lattices:base
+
+packages: https://hackage.haskell.org/package/th-letrec-0.1/candidate/th-letrec-0.1.tar.gz
