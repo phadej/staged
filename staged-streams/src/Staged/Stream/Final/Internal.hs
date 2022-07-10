@@ -223,19 +223,19 @@ termLetRec_NSNP_alt body args = withNSNP args $ \el f ->
 -- Curry type-family with utilities
 type family Curry (term :: k -> Type) (r :: k) (xs :: [k]) :: k where
     Curry term r '[]      = r
-    Curry term r (x : xs) = TyFun term x (Curry term r xs)
+    Curry term r (x : xs) = Arr_ term x (Curry term r xs)
 
 -- N-ary lambda
 slam_NP' :: forall xs r code. (SListI xs, SymFun code) => (NP code xs -> code r) -> code (Curry code r xs)
 slam_NP' f = case sList :: SList xs of
     SNil  -> f Nil
-    SCons -> termLam $ \x -> slam_NP' (f . (x :*))
+    SCons -> lam_ $ \x -> slam_NP' (f . (x :*))
 
 -- N-ary apply
 sapply_NP :: forall xs r code. (SListI xs, SymFun code) => code (Curry code r xs) -> NP code xs -> code r
 sapply_NP = case sList :: SList xs of
     SNil  -> \r Nil       -> r
-    SCons -> \f (x :* xs) -> sapply_NP (termApp f x) xs
+    SCons -> \f (x :* xs) -> sapply_NP (app_ f x) xs
 
 -- Elements, acts as tag for sletrecH
 data Elem :: (k -> Type) -> k -> [[k]] -> k -> Type where

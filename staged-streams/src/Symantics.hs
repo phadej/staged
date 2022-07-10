@@ -66,7 +66,7 @@ class SymBool (expr :: k -> Type) where
 instance SymBool I where
     type TyBool I = Bool
 
-    termIfThenElse cond x y = I (if unI cond then unI x else unI y)
+    termIfThenElse cond x y = if unI cond then x else y
 
 instance Quote q => SymBool (Code q) where
     type TyBool (Code q) = Bool
@@ -114,19 +114,19 @@ instance Quote q => SymList (Code q) where
 -------------------------------------------------------------------------------
 
 class SymFun (expr :: k -> Type) where
-    type TyFun expr (a :: k) (b :: k) :: k
+    type Arr_ expr (a :: k) (b :: k) :: k
 
-    termLam :: (expr a -> expr b) -> expr (TyFun expr a b)
-    termApp :: expr (TyFun expr a b) -> expr a -> expr b
+    lam_ :: (expr a -> expr b) -> expr (Arr_ expr a b)
+    app_ :: expr (Arr_ expr a b) -> expr a -> expr b
 
 instance SymFun I where
-    type TyFun I a b = a -> b
+    type Arr_ I a b = a -> b
 
-    termLam = coerce
-    termApp f x = coerce f x
+    lam_ = coerce
+    app_ f x = coerce f x
 
 instance Quote q => SymFun (Code q) where
-    type TyFun (Code q) a b = a -> b
+    type Arr_ (Code q) a b = a -> b
 
-    termLam f = [|| \x -> $$(f [|| x ||]) ||]
-    termApp f x = [|| $$f $$x ||]
+    lam_ f = [|| \x -> $$(f [|| x ||]) ||]
+    app_ f x = [|| $$f $$x ||]
