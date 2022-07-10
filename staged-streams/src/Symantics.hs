@@ -1,13 +1,19 @@
-{-# LANGUAGE PolyKinds, InstanceSigs, TemplateHaskell, TypeFamilies, ScopedTypeVariables, TypeOperators, RankNTypes #-}
+{-# LANGUAGE InstanceSigs        #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskellQuotes     #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 module Symantics where
 
-import Language.Haskell.TH.Syntax (Code, Quote)
-import Data.Kind (Type)
-import Data.SOP (I (..), unI)
-import Data.Proxy (Proxy (..))
-import Data.Coerce (coerce)
-import Data.GADT.Compare (GCompare)
-import Control.Monad.Fix (MonadFix)
+import Control.Monad.Fix           (MonadFix)
+import Data.Coerce                 (coerce)
+import Data.GADT.Compare           (GCompare)
+import Data.Kind                   (Type)
+import Data.Proxy                  (Proxy (..))
+import Data.SOP                    (I (..), unI)
+import Language.Haskell.TH.Syntax  (Code, Quote)
 import Language.Haskell.TTH.LetRec (letrecE)
 
 -------------------------------------------------------------------------------
@@ -48,7 +54,7 @@ instance SymLetRec I where
         -- TODO: this doesn't memoize.
         go :: forall d. tag d -> I (I d)
         go = f go
-        
+
 
 instance (Quote q, MonadFix q) => SymLetRec (Code q) where
     letrec_ bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
@@ -87,7 +93,7 @@ class SymList (expr :: k -> Type) where
         -> expr r
         -> (expr a -> expr (List_ expr a) -> expr r)
         -> expr r
-        
+
 instance SymList I where
     type List_ I a = [a]
 
@@ -100,7 +106,7 @@ instance SymList I where
 instance Quote q => SymList (Code q) where
     type List_ (Code q) a = [a]
 
-    nil_ _ = [|| [] ||] 
+    nil_ _ = [|| [] ||]
     cons_ x xs = [|| $$x : $$xs ||]
 
     caseList_ xs n c = [|| case $$xs of
