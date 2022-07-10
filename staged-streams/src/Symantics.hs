@@ -7,7 +7,7 @@ import Data.SOP (I (..), unI)
 import Data.Proxy (Proxy (..))
 import Data.Type.Equality ((:~:))
 import Data.Coerce (coerce)
-
+import Data.GADT.Compare (GEq (..))
 import Staged.Commons (sletrecH, MonadFix_)
 
 -------------------------------------------------------------------------------
@@ -32,19 +32,18 @@ instance Quote q => SymLet (Code q) where
 
 class SymLetRec (expr :: k -> Type) where
     termLetRecH
-        :: forall (tag :: k -> Type) (a :: k).
-           (forall x y. tag x -> tag y -> Maybe (x :~: y)) -- ^ equality on equation tags
-        -> (forall m (b :: k). Monad m => (forall c. tag c -> m (expr c)) -> (tag b -> m (expr b))) -- ^ open recursion callback
+        :: forall (tag :: k -> Type) (a :: k). GEq tag
+        => (forall m (b :: k). Monad m => (forall c. tag c -> m (expr c)) -> (tag b -> m (expr b))) -- ^ open recursion callback
         -> tag a     -- ^ equation tag
         -> expr a    -- ^ resulting code
 
 instance SymLetRec I where
     termLetRecH
-        :: forall tag a. (forall x y. tag x -> tag y -> Maybe (x :~: y))
-        -> (forall m b. Monad m => (forall c. tag c -> m (I c)) -> tag b -> m (I b))
+        :: forall tag a. GEq tag
+        => (forall m b. Monad m => (forall c. tag c -> m (I c)) -> tag b -> m (I b))
         -> tag a
         -> I a
-    termLetRecH _eq f start = unI (go start)
+    termLetRecH f start = unI (go start)
       where
         -- TODO: this doesn't memoize.
         go :: forall d. tag d -> I (I d)
@@ -52,7 +51,7 @@ instance SymLetRec I where
         
 
 instance (Quote q, MonadFix_ q) => SymLetRec (Code q) where
-    termLetRecH = sletrecH
+    termLetRecH = sletrecH geq
 
 -------------------------------------------------------------------------------
 -- Bool
