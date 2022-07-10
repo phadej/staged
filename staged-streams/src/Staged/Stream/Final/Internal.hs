@@ -170,7 +170,7 @@ termLetRec1_SOP f sop b =
         (mapCons_SOP b sop)
 
 -------------------------------------------------------------------------------
--- Alternative sletrec_NSNP using sletrecH
+-- Alternative sletrec_NSNP using sletrec
 -------------------------------------------------------------------------------
 
 -- I'm not proud of this.
@@ -178,17 +178,17 @@ termLetRec1_SOP f sop b =
 -- But inspection-testing doesn't say this is bad
 -- (other use sletrec1_NSNP)
 --
--- This is implementation of 'sletrec_NSNP' using 'sletrecH',
+-- This is implementation of 'sletrec_NSNP' using 'sletrec',
 -- i.e. without using unsafeTExpCoerce.
 --
--- This shows that sletrecH is good enough.
+-- This shows that sletrec is good enough.
 -- (The generated code looks just horrible).
 --
 termLetRec_NSNP_alt
     :: forall {k} (xss :: [[k]]) b code. (SListI2 xss, SymLetRec code, SymFun code)
     => Fixedpoint (NS (NP code) xss -> code b)
 termLetRec_NSNP_alt body args = withNSNP args $ \el f ->
-    f (letrecH_ loopid el)
+    f (letrec_ loopid el)
   where
     -- because of simplified subsumption
     loopid
@@ -237,7 +237,7 @@ sapply_NP = case sList :: SList xs of
     SNil  -> \r Nil       -> r
     SCons -> \f (x :* xs) -> sapply_NP (app_ f x) xs
 
--- Elements, acts as tag for sletrecH
+-- Elements, acts as tag for sletrec
 data Elem :: (k -> Type) -> k -> [[k]] -> k -> Type where
     Here  :: SListI xs         => Elem code r (xs ': xss) (Curry code r xs)
     There :: Elem code r xss f -> Elem code r (ys ': xss) f

@@ -31,19 +31,19 @@ instance Quote q => SymLet (Code q) where
 -------------------------------------------------------------------------------
 
 class SymLetRec (expr :: k -> Type) where
-    letrecH_
+    letrec_
         :: forall (tag :: k -> Type) (a :: k). GCompare tag
         => (forall m (b :: k). Monad m => (forall c. tag c -> m (expr c)) -> (tag b -> m (expr b))) -- ^ open recursion callback
         -> tag a     -- ^ equation tag
         -> expr a    -- ^ resulting code
 
 instance SymLetRec I where
-    letrecH_
+    letrec_
         :: forall tag a. GCompare tag
         => (forall m b. Monad m => (forall c. tag c -> m (I c)) -> tag b -> m (I b))
         -> tag a
         -> I a
-    letrecH_ f start = unI (go start)
+    letrec_ f start = unI (go start)
       where
         -- TODO: this doesn't memoize.
         go :: forall d. tag d -> I (I d)
@@ -51,7 +51,7 @@ instance SymLetRec I where
         
 
 instance (Quote q, MonadFix q) => SymLetRec (Code q) where
-    letrecH_ bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
+    letrec_ bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
 
 -------------------------------------------------------------------------------
 -- Bool
