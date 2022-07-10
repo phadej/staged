@@ -188,7 +188,7 @@ termLetRec_NSNP_alt
     :: forall {k} (xss :: [[k]]) b code. (SListI2 xss, SymLetRec code, SymFun code)
     => Fixedpoint (NS (NP code) xss -> code b)
 termLetRec_NSNP_alt body args = withNSNP args $ \el f ->
-    f (termLetRecH loopid el)
+    f (letrecH_ loopid el)
   where
     -- because of simplified subsumption
     loopid

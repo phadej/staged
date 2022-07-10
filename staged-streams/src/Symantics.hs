@@ -15,35 +15,35 @@ import Language.Haskell.TTH.LetRec (letrecE)
 -------------------------------------------------------------------------------
 
 class SymLet (expr :: k -> Type) where
-    termLet
+    let_
         :: expr a
         -> (expr a -> expr b)
         -> expr b
 
 instance SymLet I where
-    termLet t body = coerce body t
+    let_ t body = coerce body t
 
 instance Quote q => SymLet (Code q) where
-    termLet t body = [|| let _letb = $$t in $$(body [|| _letb ||]) ||]
+    let_ t body = [|| let _letb = $$t in $$(body [|| _letb ||]) ||]
 
 -------------------------------------------------------------------------------
 -- letrec
 -------------------------------------------------------------------------------
 
 class SymLetRec (expr :: k -> Type) where
-    termLetRecH
+    letrecH_
         :: forall (tag :: k -> Type) (a :: k). GCompare tag
         => (forall m (b :: k). Monad m => (forall c. tag c -> m (expr c)) -> (tag b -> m (expr b))) -- ^ open recursion callback
         -> tag a     -- ^ equation tag
         -> expr a    -- ^ resulting code
 
 instance SymLetRec I where
-    termLetRecH
+    letrecH_
         :: forall tag a. GCompare tag
         => (forall m b. Monad m => (forall c. tag c -> m (I c)) -> tag b -> m (I b))
         -> tag a
         -> I a
-    termLetRecH f start = unI (go start)
+    letrecH_ f start = unI (go start)
       where
         -- TODO: this doesn't memoize.
         go :: forall d. tag d -> I (I d)
@@ -51,59 +51,59 @@ instance SymLetRec I where
         
 
 instance (Quote q, MonadFix q) => SymLetRec (Code q) where
-    termLetRecH bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
+    letrecH_ bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
 
 -------------------------------------------------------------------------------
 -- Bool
 -------------------------------------------------------------------------------
 
 class SymBool (expr :: k -> Type) where
-    type TyBool expr :: k
+    type Bool_ expr :: k
 
-    termIfThenElse :: expr (TyBool expr) -> expr r -> expr r -> expr r
+    ife_ :: expr (Bool_ expr) -> expr r -> expr r -> expr r
 
 instance SymBool I where
-    type TyBool I = Bool
+    type Bool_ I = Bool
 
-    termIfThenElse cond x y = if unI cond then x else y
+    ife_ cond x y = if unI cond then x else y
 
 instance Quote q => SymBool (Code q) where
-    type TyBool (Code q) = Bool
+    type Bool_ (Code q) = Bool
 
-    termIfThenElse cond x y = [|| if $$cond then $$x else $$y ||]
+    ife_ cond x y = [|| if $$cond then $$x else $$y ||]
 
 -------------------------------------------------------------------------------
 -- List
 -------------------------------------------------------------------------------
 
 class SymList (expr :: k -> Type) where
-    type TyList expr (a :: k) :: k
+    type List_ expr (a :: k) :: k
 
-    termNil  :: Proxy a -> expr (TyList expr a)
-    termCons :: expr a -> expr (TyList expr a) -> expr (TyList expr a)
+    nil_  :: Proxy a -> expr (List_ expr a)
+    cons_ :: expr a -> expr (List_ expr a) -> expr (List_ expr a)
 
-    termCaseList
-        :: expr (TyList expr a)
+    caseList_
+        :: expr (List_ expr a)
         -> expr r
-        -> (expr a -> expr (TyList expr a) -> expr r)
+        -> (expr a -> expr (List_ expr a) -> expr r)
         -> expr r
         
 instance SymList I where
-    type TyList I a = [a]
+    type List_ I a = [a]
 
-    termNil _ = I []
-    termCons (I x) (I xs) = I (x:xs)
+    nil_ _ = I []
+    cons_ (I x) (I xs) = I (x:xs)
 
-    termCaseList (I [])     n _ = n
-    termCaseList (I (x:xs)) _ c = c (I x) (I xs)
+    caseList_ (I [])     n _ = n
+    caseList_ (I (x:xs)) _ c = c (I x) (I xs)
 
 instance Quote q => SymList (Code q) where
-    type TyList (Code q) a = [a]
+    type List_ (Code q) a = [a]
 
-    termNil _ = [|| [] ||] 
-    termCons x xs = [|| $$x : $$xs ||]
+    nil_ _ = [|| [] ||] 
+    cons_ x xs = [|| $$x : $$xs ||]
 
-    termCaseList xs n c = [|| case $$xs of
+    caseList_ xs n c = [|| case $$xs of
         []   -> $$n
         y:ys -> $$(c [|| y ||] [|| ys ||])
         ||]

@@ -81,8 +81,8 @@ singleton b = mkStreamG start step where
 -- @
 -- 'fromList' :: (C a -> C [b]) -> 'Stream' a b
 -- @
-fromList :: forall a b code. SymList code => (code a -> code (TyList code b)) -> StreamG code a b
-fromList f = unfold f $ \bs k -> termCaseList bs
+fromList :: forall a b code. SymList code => (code a -> code (List_ code b)) -> StreamG code a b
+fromList f = unfold f $ \bs k -> caseList_ bs
     (k Nothing)
     (\b bs' -> k (Just (b, bs')))
 
@@ -167,14 +167,14 @@ lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . toFn f) steps0
 -- @
 -- 'filter' :: (C b -> C Bool) -> 'Stream' a b -> 'Stream' a b
 -- @
-filter :: forall a b term. SymBool term => (term b -> term (TyBool term)) -> StreamG term a b -> StreamG term a b
+filter :: forall a b term. SymBool term => (term b -> term (Bool_ term)) -> StreamG term a b -> StreamG term a b
 filter p (MkStreamG s0 steps0) = MkStreamG s0 (go steps0) where
     go :: (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
        -> (SOP term xss -> (Step (term b) (SOP term xss) -> term r) -> term r)
     go steps s k = steps s $ \case
         Stop      -> k Stop
         Skip   s' -> k (Skip s')
-        Emit a s' -> termIfThenElse
+        Emit a s' -> ife_
             (p a)
             (k (Emit a s'))
             (k (Skip s'))
@@ -447,15 +447,15 @@ foldl op e z (MkStreamG xs steps0) =
 
 -- |
 --
-toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (SymLetRec expr, SymFun expr, SymList expr) => expr a -> StreamG expr a b -> expr (TyList expr b)
+toList :: forall {k} (a :: k) (b :: k) (expr :: k -> Type). (SymLetRec expr, SymFun expr, SymList expr) => expr a -> StreamG expr a b -> expr (List_ expr b)
 toList a (MkStreamG start steps0) =
     termLetRec_SOP (body steps0) (start a)
   where
     body
-        :: (SOP expr xss -> (Step (expr b) (SOP expr xss) -> expr (TyList expr b)) -> expr (TyList expr b))
-        -> (SOP expr xss -> expr (TyList expr b))
-        -> SOP expr xss -> expr (TyList expr b)
+        :: (SOP expr xss -> (Step (expr b) (SOP expr xss) -> expr (List_ expr b)) -> expr (List_ expr b))
+        -> (SOP expr xss -> expr (List_ expr b))
+        -> SOP expr xss -> expr (List_ expr b)
     body steps loop curr = steps curr $ \case
-        Stop        -> termNil (Proxy @b)
+        Stop        -> nil_ (Proxy @b)
         Skip   next -> loop next
-        Emit b next -> termCons b (loop next)
+        Emit b next -> cons_ b (loop next)
