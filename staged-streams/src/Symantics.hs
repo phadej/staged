@@ -123,7 +123,7 @@ instance SymFun I where
     type TyFun I a b = a -> b
 
     termLam = coerce
-    termApp (I f) (I x) = I (f x)
+    termApp f x = coerce f x
 
 instance Quote q => SymFun (Code q) where
     type TyFun (Code q) a b = a -> b
