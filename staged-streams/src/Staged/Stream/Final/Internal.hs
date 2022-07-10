@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds         #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DataKinds               #-}
 {-# LANGUAGE DeriveGeneric           #-}
 {-# LANGUAGE EmptyCase               #-}
@@ -29,7 +30,8 @@ import Data.Proxy          (Proxy (..))
 import qualified GHC.Generics as GHC
 import Data.Type.Equality ((:~:) (..))
 
-import Data.SOP (Top,(:.:) (..), K (..), SList (..), SListI2, SListI, sList, SOP (..), NP (..), NS (..), unSOP)
+import Data.Monoid (Ap (..))
+import Data.SOP (Top,(:.:) (..), unZ, K (..), SList (..), SListI2, SListI, sList, SOP (..), NP (..), NS (..), unSOP)
 import Data.SOP.NP (cmap_NP, sequence'_NP, map_NP)
 import Data.SOP.NS (collapse_NS, liftA2_NS)
 
@@ -40,9 +42,11 @@ import Data.SOP.Fn.ConcatMapAppend
 import Data.GADT.Compare
 import Symantics
 
--- Use Ap
-type O :: (k -> Type) -> k -> Type
-newtype O f a = O { unO :: f a }
+singSOP :: f a -> SOP f '[ '[ a ] ]
+singSOP x = SOP (Z (x :* Nil))
+
+unsingSOP :: SOP f '[ '[ a ] ] -> f a
+unsingSOP (SOP (unZ -> (x :* Nil))) = x
 
 -------------------------------------------------------------------------------
 -- Type families
@@ -141,10 +145,9 @@ instance forall k (code :: k -> Type) (code' :: k -> Type) (xss :: [[k]]). (code
     fromK = id
     toK = id
 
-instance forall k (code :: k -> Type) (code' :: k -> Type) (a :: k). code ~ code' => FlattenCodeK (O code a) code' '[ '[ a ] ] where
-    fromK (O x) = SOP (Z (x :* Nil))
-    toK (SOP (Z (x :* Nil))) = O x
-    toK (SOP (S x)) = case x of {}
+instance forall k (code :: k -> Type) (code' :: k -> Type) (a :: k). code ~ code' => FlattenCodeK (Ap code a) code' '[ '[ a ] ] where
+    fromK = singSOP . getAp
+    toK = Ap . unsingSOP
 
 -------------------------------------------------------------------------------
 -- Fixedpoints

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE TypeFamilies        #-}
@@ -9,46 +10,44 @@
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE ViewPatterns #-}
-module Staged.Stream.Final.Combinators {- (
+module Staged.Stream.Final.Combinators (
     -- * Construction
     singleton,
     fromList,
     unfold,
     iterate,
-    replicate,
+--    replicate,
     -- * Transformations
     map,
-    mapWithInput,
+--    mapWithInput,
     lmap,
     filter,
-    take,
-    drop,
+--    take,
+--    drop,
     -- * Append
     append,
     empty,
     -- * Zipping
-    zipWith,
+--    zipWith,
     repeat,
     -- * Aligning
-    alignWith,
+--    alignWith,
     -- * Recursion
-    bfsTree,
+--    bfsTree,
     -- * Pipes
     idPipe,
-    mapPipe,
-    filterPipe,
+--    mapPipe,
+--    filterPipe,
     -- * Elimination
     foldl,
     toList,
-    ) -} where
+    ) where
 
-import Prelude (($), Bool (..), (<), (+), subtract, Int, (.), Maybe (..), id)
--- import Prelude (undefined)
+import Prelude (($), Maybe (..), (.))
 
-import Data.SOP (SOP (..), unZ, NS (..), NP (..), SListI2, I (..), unI)
+import Data.Monoid (Ap (..))
+import Data.SOP (SOP)
 import Data.Kind (Type)
-import Language.Haskell.TH.Syntax (Code, Quote)
 import Data.Proxy (Proxy (..))
 
 import qualified Control.Category as  C
@@ -110,11 +109,7 @@ unfold start f = MkStreamG (singSOP . start) steps where
 iterate :: (code a -> code a) -> StreamG code a a
 iterate f = MkStreamG singSOP $ \(unsingSOP -> curr) k -> k (Emit curr (singSOP (f curr)))
 
-singSOP :: f a -> SOP f '[ '[ a ] ]
-singSOP x = SOP (Z (x :* Nil))
 
-unsingSOP :: SOP f '[ '[ a ] ] -> f a
-unsingSOP (SOP (unZ -> (x :* Nil))) = x
 
 {-
 -- |
@@ -153,14 +148,15 @@ mapWithInput f (MkStreamG s0 steps0) =
         Stop        -> k Stop
         Skip   next -> k (Skip (a, next))
         Emit b next -> k (Emit (toFn2 f a b) (a, next))
+-}
+
 -- |
 --
 -- @
 -- 'lmap' :: (C a -> C b) -> 'Stream' b c -> 'Stream' a c
 -- @
-lmap :: forall a b c ab. ToCodeFn Q a b ab => ab -> StreamG b c -> StreamG a c
-lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . toFn f) steps0
--}
+lmap :: forall a b c code. (code a -> code b) -> StreamG code b c -> StreamG code a c
+lmap f (MkStreamG s0 steps0) = MkStreamG (s0 . f) steps0
 
 -- |
 --
@@ -227,11 +223,11 @@ drop n (MkStreamG start steps) =
 
 append :: forall a b term. StreamG term a b -> StreamG term a b -> StreamG term a b
 append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
-    mkStreamG (\a -> AppL (O a) (startL a)) $ \step k -> case step of
-        AppL (O a) xss -> stepsL xss $ \case
+    mkStreamG (\a -> AppL (Ap a) (startL a)) $ \step k -> case step of
+        AppL (Ap a) xss -> stepsL xss $ \case
             Stop        -> k (Skip   (AppR (startR a)))
-            Skip   xss' -> k (Skip   (AppL (O a) xss'))
-            Emit b xss' -> k (Emit b (AppL (O a) xss'))
+            Skip   xss' -> k (Skip   (AppL (Ap a) xss'))
+            Emit b xss' -> k (Emit b (AppL (Ap a) xss'))
 
         AppR yss -> stepsR yss $ \case
             Stop -> k Stop
@@ -366,11 +362,13 @@ bfsTree (MkStreamG start0 steps0) p = mk start0 steps0 where
 -------------------------------------------------------------------------------
 -- Pipes
 -------------------------------------------------------------------------------
+-}
 
 -- | Identity.
-idPipe :: StreamG a a
+idPipe :: StreamG code a a
 idPipe = C.id
 
+{-
 -- | Similar to 'map', prefer using 'map'.
 --
 -- @

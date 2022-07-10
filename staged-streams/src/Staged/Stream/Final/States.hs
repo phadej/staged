@@ -1,19 +1,18 @@
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PolyKinds #-}
 module Staged.Stream.Final.States where
 
-import Data.Proxy     (Proxy (..))
-import Data.SOP       (SListI2, SOP (..))
+import Data.Monoid (Ap (..))
+import Data.Proxy  (Proxy (..))
+import Data.SOP    (SListI2, SOP (..))
 
 import qualified GHC.Generics as GHC
 
 import Data.SOP.Fn.Append
 import Data.SOP.Fn.ConcatMapAppend
-
-import Staged.Stream.Final.Internal
 
 data One code
     = One
@@ -32,8 +31,8 @@ data Comp xss yss code
 
 -- | For @append@ combinator
 data App a xss yss code
-    = AppL (O code a) (SOP code xss)
-    | AppR            (SOP code yss)
+    = AppL (Ap code a) (SOP code xss)
+    | AppR             (SOP code yss)
   deriving (GHC.Generic)
 
 -- | For @zipWith@ combinator
