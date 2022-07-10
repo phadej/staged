@@ -14,7 +14,7 @@ import Data.Kind                   (Type)
 import Data.Proxy                  (Proxy (..))
 import Data.SOP                    (I (..), unI)
 import Language.Haskell.TH.Syntax  (Code, Quote)
-import Language.Haskell.TTH.LetRec (letrecE)
+import Language.Haskell.TTH.LetRec (letrecH)
 
 -------------------------------------------------------------------------------
 -- let
@@ -57,7 +57,7 @@ instance SymLetRec I where
 
 
 instance (Quote q, MonadFix q) => SymLetRec (Code q) where
-    letrec_ bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
+    letrec_ bindf tag0 = letrecH (const "_letrec") bindf (\recf -> recf tag0)
 
 -------------------------------------------------------------------------------
 -- Bool
