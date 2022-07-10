@@ -19,3 +19,5 @@ allow-newer: kleene:base
 allow-newer: range-set-list:base
 allow-newer: step-function:base
 allow-newer: lattices:base
+
+packages: https://hackage.haskell.org/package/th-letrec-0.1/candidate/th-letrec-0.1.tar.gz

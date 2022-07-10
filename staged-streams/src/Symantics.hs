@@ -5,10 +5,10 @@ import Language.Haskell.TH.Syntax (Code, Quote)
 import Data.Kind (Type)
 import Data.SOP (I (..), unI)
 import Data.Proxy (Proxy (..))
-import Data.Type.Equality ((:~:))
 import Data.Coerce (coerce)
-import Data.GADT.Compare (GEq (..))
-import Staged.Commons (sletrecH, MonadFix_)
+import Data.GADT.Compare (GCompare)
+import Control.Monad.Fix (MonadFix)
+import Language.Haskell.TTH.LetRec (letrecE)
 
 -------------------------------------------------------------------------------
 -- let
@@ -32,14 +32,14 @@ instance Quote q => SymLet (Code q) where
 
 class SymLetRec (expr :: k -> Type) where
     termLetRecH
-        :: forall (tag :: k -> Type) (a :: k). GEq tag
+        :: forall (tag :: k -> Type) (a :: k). GCompare tag
         => (forall m (b :: k). Monad m => (forall c. tag c -> m (expr c)) -> (tag b -> m (expr b))) -- ^ open recursion callback
         -> tag a     -- ^ equation tag
         -> expr a    -- ^ resulting code
 
 instance SymLetRec I where
     termLetRecH
-        :: forall tag a. GEq tag
+        :: forall tag a. GCompare tag
         => (forall m b. Monad m => (forall c. tag c -> m (I c)) -> tag b -> m (I b))
         -> tag a
         -> I a
@@ -50,8 +50,8 @@ instance SymLetRec I where
         go = f go
         
 
-instance (Quote q, MonadFix_ q) => SymLetRec (Code q) where
-    termLetRecH = sletrecH geq
+instance (Quote q, MonadFix q) => SymLetRec (Code q) where
+    termLetRecH bindf tag0 = letrecE (const "_letrec") bindf (\recf -> recf tag0)
 
 -------------------------------------------------------------------------------
 -- Bool
