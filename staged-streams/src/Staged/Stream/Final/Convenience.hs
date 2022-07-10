@@ -27,7 +27,6 @@ import Data.Kind (Type)
 
 import Staged.Stream.Final.Internal
 import Staged.Stream.Final.Type
-import Staged.Stream.Final.States
 
 -- | Create 'Stream' from a simple state.
 --
@@ -63,22 +62,3 @@ mkStreamG start0 step0 =
 
     step :: SOP code xss -> (Step (code b) (SOP code xss) -> code r) -> code r
     step s k = step0 (to' s) (k . fmap from')
-
--------------------------------------------------------------------------------
--- test: WIP
--------------------------------------------------------------------------------
-
-{-
-append :: forall code a b. StreamG code a b -> StreamG code a b -> StreamG code a b
-append (MkStreamG startL stepsL) (MkStreamG startR stepsR) =
-    mkStreamG (\a -> AppL (O a) (startL a)) $ \step k -> case step of
-        AppL a xss -> stepsL xss $ \case
-            Stop        -> k (Skip   (AppR (startR (unO a))))
-            Skip   xss' -> k (Skip   (AppL a xss'))
-            Emit b xss' -> k (Emit b (AppL a xss'))
-
-        AppR yss -> stepsR yss $ \case
-            Stop -> k Stop
-            Skip   yss' -> k (Skip   (AppR yss'))
-            Emit b yss' -> k (Emit b (AppR yss'))
--}

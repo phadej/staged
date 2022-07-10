@@ -272,15 +272,17 @@ zipWith h (MkStreamG start0 steps0) (MkStreamG start1 steps1) =
         Stop        -> k Stop
         Skip   yss' -> k (Skip               (ZipR a xss yss'))
         Emit b yss' -> k (Emit (toFn2 h a b) (ZipL xss yss'))
+-}
 
 -- |
 --
 -- @
 -- 'repeat' :: C a -> 'Stream' i a
 -- @
-repeat :: IsCode Q a ca => ca -> StreamG i a
-repeat a = mkStreamG (\_ -> ()) $ \() k -> k (Emit (toCode a) ())
+repeat :: SymUnit code => code a -> StreamG code i a
+repeat a = MkStreamG (\_ -> singSOP unit_) $ \s k -> k (Emit a s)
 
+{-
 -------------------------------------------------------------------------------
 -- Aligning
 -------------------------------------------------------------------------------

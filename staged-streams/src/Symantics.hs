@@ -135,3 +135,22 @@ instance Quote q => SymFun (Code q) where
 
     lam_ f = [|| \arg -> $$(f [|| arg ||]) ||]
     app_ f x = [|| $$f $$x ||]
+
+-------------------------------------------------------------------------------
+-- Unit
+-------------------------------------------------------------------------------
+
+class SymUnit (expr :: k -> Type) where
+    type Unit_ expr :: k
+
+    unit_ :: expr (Unit_ expr)
+
+instance SymUnit I where
+    type Unit_ I = ()
+
+    unit_ = I ()
+
+instance Quote q => SymUnit (Code q) where
+    type Unit_ (Code q) = ()
+
+    unit_ = [|| () ||]
