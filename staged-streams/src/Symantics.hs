@@ -128,5 +128,5 @@ instance SymFun I where
 instance Quote q => SymFun (Code q) where
     type Arr_ (Code q) a b = a -> b
 
-    lam_ f = [|| \x -> $$(f [|| x ||]) ||]
+    lam_ f = [|| \arg -> $$(f [|| arg ||]) ||]
     app_ f x = [|| $$f $$x ||]
